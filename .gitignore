@@ -1,0 +1,80 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environments
+wavenet-dev/
+wavenet-prod/
+venv/
+env/
+ENV/
+
+# PyTorch & ML
+*.pth
+*.pt
+*.ckpt
+checkpoints/
+runs/
+wandb/
+lightning_logs/
+
+# Datasets (Large files)
+datasets/COCO*/
+datasets/DAVIS*/
+COCO*/
+*.jpg
+*.png
+*.mp4
+*.avi
+
+# Keep dataset setup scripts
+!datasets/*.py
+!datasets/*.sh
+
+# Results & Logs
+results/
+logs/
+*.log
+*.out
+
+# Jupyter Notebooks
+.ipynb_checkpoints
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Temporary files
+temp/
+tmp/
+*.tmp
+
+# Windows specific
+*.bat~ 
