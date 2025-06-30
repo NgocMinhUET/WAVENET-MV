@@ -237,10 +237,10 @@ class Stage2Trainer:
                 x_hat, likelihoods, y_quantized = self.compressor_model(mixed_features)
                 compressed_features = x_hat
                 
-                # Calculate BPP from likelihoods - CORRECTED
-                # Original image dimensions for BPP calculation
-                batch_size = mixed_features.size(0)
-                num_pixels = mixed_features.size(2) * mixed_features.size(3)  # H * W của original
+                # Calculate BPP from likelihoods - FIXED: Use original image dimensions
+                # Original image dimensions for BPP calculation (NOT mixed_features dimensions)
+                batch_size = images.size(0)  # FIXED: Use images, not mixed_features
+                num_pixels = images.size(2) * images.size(3)  # H * W of ORIGINAL images
                 
                 # Rate calculation: -log2(likelihoods) summed over all dimensions
                 log_likelihoods = torch.log(likelihoods.clamp(min=1e-10))
@@ -253,8 +253,12 @@ class Stage2Trainer:
                     print(f"🔍 DEBUG - Compressed features: {compressed_features.shape}, range: [{compressed_features.min():.4f}, {compressed_features.max():.4f}]")
                     diff = torch.abs(compressed_features - mixed_features)
                     print(f"🔍 DEBUG - Difference: mean={diff.mean():.8f}, max={diff.max():.8f}")
+                    print(f"🔍 DEBUG - Original images: {images.shape}, Mixed features: {mixed_features.shape}")
+                    print(f"🔍 DEBUG - BPP calculation: {total_bits:.2f} bits / ({batch_size} * {num_pixels}) = {bpp:.4f}")
                     if diff.max() < 1e-6:
                         print("🚨 BUG: CompressorVNVC acting as identity function!")
+                    else:
+                        print("✅ CompressorVNVC applying compression (good!)")
                 
                 # Shape check và resize nếu cần
                 if compressed_features.shape != mixed_features.shape:
@@ -267,9 +271,9 @@ class Stage2Trainer:
                     )
                     print(f"✅ Resized to: {compressed_features.shape}")
                 
-                # Reconstruction loss (MSE) with floor to prevent collapse
+                # Reconstruction loss (MSE) - REMOVED FLOOR to expose real MSE
                 mse_loss = self.mse_criterion(compressed_features, mixed_features)
-                mse_loss = torch.max(mse_loss, torch.tensor(1e-5, device=mse_loss.device))  # MSE floor
+                # NO MSE FLOOR! Let's see the real MSE values
                 
                 # Total loss: λ·MSE + BPP
                 total_loss = self.args.lambda_rd * mse_loss + bpp
@@ -331,10 +335,10 @@ class Stage2Trainer:
                     x_hat, likelihoods, y_quantized = self.compressor_model(mixed_features)
                     compressed_features = x_hat
                     
-                    # Calculate BPP from likelihoods - CORRECTED
-                    # Original image dimensions for BPP calculation
-                    batch_size = mixed_features.size(0)
-                    num_pixels = mixed_features.size(2) * mixed_features.size(3)  # H * W của original
+                    # Calculate BPP from likelihoods - FIXED: Use original image dimensions
+                    # Original image dimensions for BPP calculation (NOT mixed_features dimensions)
+                    batch_size = images.size(0)  # FIXED: Use images, not mixed_features
+                    num_pixels = images.size(2) * images.size(3)  # H * W of ORIGINAL images
                     
                     # Rate calculation: -log2(likelihoods) summed over all dimensions
                     log_likelihoods = torch.log(likelihoods.clamp(min=1e-10))
@@ -350,9 +354,9 @@ class Stage2Trainer:
                             align_corners=False
                         )
                     
-                    # Losses with MSE floor
+                    # Losses - REMOVED MSE FLOOR to expose real MSE values
                     mse_loss = self.mse_criterion(compressed_features, mixed_features)
-                    mse_loss = torch.max(mse_loss, torch.tensor(1e-5, device=mse_loss.device))  # MSE floor
+                    # NO MSE FLOOR! Let's see the real MSE values
                     total_loss = self.args.lambda_rd * mse_loss + bpp
                 
                 val_loss += total_loss.item()
@@ -456,9 +460,8 @@ def main():
                        help='Learning rate')
     parser.add_argument('--weight_decay', type=float, default=1e-4,
                        help='Weight decay')
-    parser.add_argument('--lambda_rd', type=float, default=128,
-                       choices=[64, 128, 256, 512, 1024, 2048, 4096],
-                       help='Rate-distortion tradeoff parameter')
+    parser.add_argument('--lambda_rd', type=int, choices=[64, 128, 256, 512, 1024, 2048, 4096], 
+                       default=128, help='Lambda for rate-distortion tradeoff')
     parser.add_argument('--seed', type=int, default=42,
                        help='Random seed')
     

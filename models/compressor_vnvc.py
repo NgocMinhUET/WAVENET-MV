@@ -52,7 +52,7 @@ class EntropyBottleneck(nn.Module):
     Entropy bottleneck với CompressAI GaussianConditional
     """
     
-    def __init__(self, channels, tail_mass=1e-9, init_scale=10, filters=(3, 3, 3, 3)):
+    def __init__(self, channels, tail_mass=1e-9, init_scale=0.1, filters=(3, 3, 3, 3)):
         super().__init__()
         
         self.channels = channels
@@ -89,8 +89,8 @@ class EntropyBottleneck(nn.Module):
         scales = self.context_prediction(y)
         scales = torch.exp(scales)  # Ensure positive scales
         
-        # Add learned global scales với clamping để tránh scales quá lớn/nhỏ
-        scales = scales + self._scales.view(1, -1, 1, 1).clamp(min=0.1, max=10.0)
+        # Add learned global scales với SMALLER clamping để tăng quantization effect
+        scales = scales + self._scales.view(1, -1, 1, 1).clamp(min=0.01, max=2.0)  # FIXED: Smaller range (0.01-2.0 instead of 0.1-10.0)
         
         # Gaussian conditional entropy model
         y_hat, likelihoods = self.gaussian_conditional(y, scales)
@@ -130,26 +130,26 @@ class CompressorVNVC(nn.Module):
         self.latent_channels = latent_channels
         self.lambda_rd = lambda_rd
         
-        # Analysis transform (encoder)
+        # Analysis transform (encoder) - FIXED: Reduce complexity
         self.analysis_transform = nn.Sequential(
-            conv(input_channels, latent_channels, kernel_size=5, stride=2),
+            conv(input_channels, latent_channels, kernel_size=5, stride=2),  # /2
             nn.ReLU(inplace=True),
-            conv(latent_channels, latent_channels, kernel_size=5, stride=2),  
+            conv(latent_channels, latent_channels, kernel_size=5, stride=2),  # /4
             nn.ReLU(inplace=True),
-            conv(latent_channels, latent_channels, kernel_size=5, stride=2),
+            conv(latent_channels, latent_channels, kernel_size=3, stride=1),  # FIXED: stride=1, smaller kernel
             nn.ReLU(inplace=True),
-            conv(latent_channels, latent_channels, kernel_size=5, stride=2)
+            conv(latent_channels, latent_channels, kernel_size=3, stride=1)   # FIXED: stride=1, smaller kernel
         )
         
-        # Synthesis transform (decoder)
+        # Synthesis transform (decoder) - FIXED: Match analysis
         self.synthesis_transform = nn.Sequential(
-            deconv(latent_channels, latent_channels, kernel_size=5, stride=2),
+            deconv(latent_channels, latent_channels, kernel_size=3, stride=1),  # FIXED: stride=1, smaller kernel
             nn.ReLU(inplace=True),
-            deconv(latent_channels, latent_channels, kernel_size=5, stride=2),
+            deconv(latent_channels, latent_channels, kernel_size=3, stride=1),  # FIXED: stride=1, smaller kernel
             nn.ReLU(inplace=True), 
-            deconv(latent_channels, latent_channels, kernel_size=5, stride=2),
+            deconv(latent_channels, latent_channels, kernel_size=5, stride=2),  # ×2
             nn.ReLU(inplace=True),
-            deconv(latent_channels, input_channels, kernel_size=5, stride=2)
+            deconv(latent_channels, input_channels, kernel_size=5, stride=2)    # ×4
         )
         
         # Quantizer
@@ -220,13 +220,14 @@ class CompressorVNVC(nn.Module):
         
         return x_hat
     
-    def compute_rate_distortion_loss(self, x, x_hat, likelihoods):
+    def compute_rate_distortion_loss(self, x, x_hat, likelihoods, original_shape):
         """
         Compute RD loss: λ·L_rec + BPP
         Args:
             x: Original features
             x_hat: Reconstructed features  
             likelihoods: Bit probabilities
+            original_shape: Original image dimensions for proper BPP calculation
         Returns:
             rd_loss: Rate-distortion loss
             distortion: Reconstruction loss
@@ -235,9 +236,9 @@ class CompressorVNVC(nn.Module):
         # Distortion (MSE reconstruction loss)
         distortion = F.mse_loss(x_hat, x)
         
-        # Rate (bits per pixel) - FIX: Dùng latent space size từ likelihoods
-        batch_size = likelihoods.size(0)
-        num_pixels = likelihoods.size(2) * likelihoods.size(3)  # H/16 * W/16
+        # Rate (bits per pixel) - FIXED: Use original image dimensions
+        batch_size = original_shape[0]
+        num_pixels = original_shape[2] * original_shape[3]  # H * W of ORIGINAL images
         
         # Compute rate từ likelihoods
         log_likelihoods = torch.log(likelihoods.clamp(min=1e-10))
@@ -291,16 +292,16 @@ class MultiLambdaCompressorVNVC(nn.Module):
         compressor = self.compressors[str(lambda_value)]
         return compressor.decompress(bitstream)
     
-    def compute_rate_distortion_loss(self, x, x_hat, likelihoods):
+    def compute_rate_distortion_loss(self, x, x_hat, likelihoods, original_shape):
         """Compute RD loss với current lambda"""
         compressor = self.compressors[str(self.current_lambda)]
         
         # Distortion (MSE reconstruction loss)
         distortion = F.mse_loss(x_hat, x)
         
-        # Rate (bits per pixel) - FIX: Dùng latent space size từ likelihoods  
-        batch_size = likelihoods.size(0)
-        num_pixels = likelihoods.size(2) * likelihoods.size(3)  # H/16 * W/16
+        # Rate (bits per pixel) - FIXED: Use original image dimensions
+        batch_size = original_shape[0]
+        num_pixels = original_shape[2] * original_shape[3]  # H * W of ORIGINAL images
         
         # Compute rate từ likelihoods
         log_likelihoods = torch.log(likelihoods.clamp(min=1e-10))
@@ -327,6 +328,12 @@ def test_compressor_vnvc():
     assert y_quantized.shape[0] == x.shape[0], f"Latent batch size mismatch"
     assert likelihoods.shape == y_quantized.shape, f"Likelihoods shape mismatch"
     
+    # Test RD loss
+    rd_loss, distortion, rate = compressor.compute_rate_distortion_loss(x, x_hat, likelihoods, x.shape)
+    assert rd_loss.item() > 0, f"RD loss should be positive"
+    
+    print(f"✓ Single compressor: RD={rd_loss.item():.4f}, MSE={distortion.item():.6f}, BPP={rate.item():.4f}")
+    
     print("✓ CompressorVNVC tests passed!")
     
     # Test multi-lambda compressor
@@ -338,11 +345,11 @@ def test_compressor_vnvc():
         x_hat, likelihoods, y_quantized = multi_compressor(x)
         assert x_hat.shape == x.shape, f"Multi-compressor shape mismatch for λ={lambda_val}"
         
-        # Test RD loss
-        rd_loss, distortion, rate = multi_compressor.compute_rate_distortion_loss(x, x_hat, likelihoods)
+        # Test RD loss with correct signature
+        rd_loss, distortion, rate = multi_compressor.compute_rate_distortion_loss(x, x_hat, likelihoods, x.shape)
         assert rd_loss.item() > 0, f"RD loss should be positive for λ={lambda_val}"
-    
-    print("✓ MultiLambdaCompressorVNVC tests passed!")
+        
+        print(f"✓ λ={lambda_val}: RD={rd_loss.item():.4f}, MSE={distortion.item():.6f}, BPP={rate.item():.4f}")
 
 
 if __name__ == "__main__":
