@@ -173,4 +173,176 @@ Sau khi hoàn thành workflow này, bạn sẽ có:
 - ✅ **Monitoring system** đầy đủ
 
 ---
-*💡 Tip: Bookmark file này và follow từng bước cho lần đầu setup!* 
+*💡 Tip: Bookmark file này và follow từng bước cho lần đầu setup!*
+
+## 🔄 **GIT WORKFLOW: DEVELOPMENT (Máy A) → SERVER (Máy B)**
+
+### **Quy trình tổng quan**
+```
+Máy A (Windows - Development) → Git Repository → Máy B (Server - Training)
+```
+
+### **Bước 1: Phát triển trên Máy A (Windows)**
+
+#### 1.1 Kiểm tra và commit thay đổi
+```bash
+# Kiểm tra status
+git status
+
+# Thêm file đã sửa
+git add .
+
+# Commit với message rõ ràng
+git commit -m "Fix: [mô tả lỗi được sửa]"
+# hoặc
+git commit -m "Feature: [tính năng mới]"
+# hoặc
+git commit -m "Update: [cập nhật nào]"
+```
+
+#### 1.2 Push lên remote repository
+```bash
+git push origin master
+```
+
+### **Bước 2: Chạy trên Máy B (Server)**
+
+#### 2.1 Clone repository (lần đầu)
+```bash
+git clone [YOUR_REPO_URL]
+cd wavenet-mv
+```
+
+#### 2.2 Pull latest changes (các lần sau)
+```bash
+git pull origin master
+```
+
+#### 2.3 Setup environment (nếu cần)
+```bash
+# Install dependencies
+pip install -r requirements.txt
+
+# Setup datasets
+./datasets/setup_coco.sh
+./datasets/setup_davis.sh
+```
+
+#### 2.4 Chạy training
+```bash
+# Stage 1: Wavelet Training
+python training/stage1_train_wavelet.py
+
+# Stage 2: Compressor Training  
+python training/stage2_train_compressor.py
+
+# Stage 3: AI Heads Training
+python training/stage3_train_ai.py
+```
+
+### **Bước 3: Xử lý lỗi (Error Handling)**
+
+#### 3.1 Khi gặp lỗi trên Máy B
+1. **Copy full error message** (bao gồm traceback)
+2. **Copy command đã chạy**
+3. **Note môi trường** (Python version, CUDA, etc)
+
+#### 3.2 Debug trên Máy A
+1. Paste error vào Cursor AI
+2. Phân tích và sửa lỗi
+3. Test local nếu có thể
+4. Commit fix:
+```bash
+git add .
+git commit -m "Fix: [mô tả lỗi cụ thể]"
+git push origin master
+```
+
+#### 3.3 Quay lại Máy B
+```bash
+git pull origin master
+# Chạy lại command bị lỗi
+```
+
+### **📋 Checklist trước khi Push**
+
+**Trên Máy A:**
+- [ ] Code không có syntax error
+- [ ] Commit message rõ ràng
+- [ ] Đã test cơ bản (nếu có thể)
+- [ ] Cập nhật requirements.txt nếu thêm dependency
+
+**Trên Máy B:**
+- [ ] Pull latest changes
+- [ ] Check Python environment
+- [ ] Verify dataset paths
+- [ ] Check disk space cho checkpoints
+
+### **🔧 Useful Git Commands**
+
+```bash
+# Kiểm tra commit history
+git log --oneline -10
+
+# So sánh với remote
+git fetch
+git diff HEAD origin/master
+
+# Rollback nếu cần
+git reset --hard HEAD~1
+
+# Tạo branch cho feature lớn
+git checkout -b feature/new-architecture
+git push -u origin feature/new-architecture
+```
+
+### **📊 Monitoring Commands cho Máy B**
+
+```bash
+# Check GPU usage
+nvidia-smi
+
+# Monitor training progress
+tensorboard --logdir=./runs
+
+# Check disk space
+df -h
+
+# Check running processes
+ps aux | grep python
+```
+
+### **🚨 Common Issues & Solutions**
+
+| Issue | Solution |
+|-------|----------|
+| `git pull` conflicts | `git stash` → `git pull` → `git stash pop` |
+| CUDA out of memory | Reduce batch size in config |
+| Dataset not found | Check paths in `dataset_loaders.py` |
+| Permission denied | `chmod +x scripts/*.sh` |
+| Python version mismatch | Use conda/venv with exact version |
+
+### **📝 Error Reporting Template**
+
+```
+**Environment:**
+- OS: [Ubuntu 20.04 / CentOS 7 / etc]
+- Python: [3.8.x]
+- PyTorch: [1.13.x]
+- CUDA: [11.6]
+
+**Command:**
+```bash
+[exact command that failed]
+```
+
+**Error:**
+```
+[full traceback]
+```
+
+**Additional Info:**
+- Commit hash: [git rev-parse HEAD]
+- Disk space: [df -h]
+- GPU info: [nvidia-smi]
+``` 
