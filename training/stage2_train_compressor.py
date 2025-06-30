@@ -10,6 +10,7 @@ Stage 2 Training: CompressorVNVC + AdaMixNet Training
 import os
 import sys
 import argparse
+import math
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -123,8 +124,9 @@ class Stage2Trainer:
         wavelet_channels = 64  # From Stage 1
         self.adamix_model = AdaMixNet(
             input_channels=4 * wavelet_channels,  # 4×C' = 4×64 = 256
-            output_channels=128,  # C_mix = 128
-            num_filters=4
+            C_prime=wavelet_channels,  # C' = 64
+            C_mix=128,  # Output channels
+            N=4  # Number of parallel filters
         ).to(self.device)
         
         # CompressorVNVC
@@ -231,9 +233,11 @@ class Stage2Trainer:
                 mixed_features = self.adamix_model(wavelet_coeffs)  # [B, 128, H, W]
                 
                 # Stage 2b: CompressorVNVC
-                compressed_output = self.compressor_model(mixed_features)
-                compressed_features = compressed_output['x_hat']
-                bpp = compressed_output['bpp']
+                x_hat, likelihoods, y_quantized = self.compressor_model(mixed_features)
+                compressed_features = x_hat
+                
+                # Calculate BPP from likelihoods
+                bpp = torch.log(likelihoods).sum() / (-math.log(2) * mixed_features.size(0) * mixed_features.size(2) * mixed_features.size(3))
                 
                 # Reconstruction loss (MSE)
                 mse_loss = self.mse_criterion(compressed_features, mixed_features)
@@ -295,9 +299,11 @@ class Stage2Trainer:
                     
                     # Stage 2: AdaMixNet + Compressor
                     mixed_features = self.adamix_model(wavelet_coeffs)
-                    compressed_output = self.compressor_model(mixed_features)
-                    compressed_features = compressed_output['x_hat']
-                    bpp = compressed_output['bpp']
+                    x_hat, likelihoods, y_quantized = self.compressor_model(mixed_features)
+                    compressed_features = x_hat
+                    
+                    # Calculate BPP from likelihoods
+                    bpp = torch.log(likelihoods).sum() / (-math.log(2) * mixed_features.size(0) * mixed_features.size(2) * mixed_features.size(3))
                     
                     # Losses
                     mse_loss = self.mse_criterion(compressed_features, mixed_features)
