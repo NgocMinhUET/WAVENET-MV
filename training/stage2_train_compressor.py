@@ -267,8 +267,9 @@ class Stage2Trainer:
                     )
                     print(f"✅ Resized to: {compressed_features.shape}")
                 
-                # Reconstruction loss (MSE)
+                # Reconstruction loss (MSE) with floor to prevent collapse
                 mse_loss = self.mse_criterion(compressed_features, mixed_features)
+                mse_loss = torch.max(mse_loss, torch.tensor(1e-5, device=mse_loss.device))  # MSE floor
                 
                 # Total loss: λ·MSE + BPP
                 total_loss = self.args.lambda_rd * mse_loss + bpp
@@ -349,8 +350,9 @@ class Stage2Trainer:
                             align_corners=False
                         )
                     
-                    # Losses
+                    # Losses with MSE floor
                     mse_loss = self.mse_criterion(compressed_features, mixed_features)
+                    mse_loss = torch.max(mse_loss, torch.tensor(1e-5, device=mse_loss.device))  # MSE floor
                     total_loss = self.args.lambda_rd * mse_loss + bpp
                 
                 val_loss += total_loss.item()
@@ -450,12 +452,12 @@ def main():
                        help='Number of training epochs')
     parser.add_argument('--batch_size', type=int, default=8,
                        help='Batch size')
-    parser.add_argument('--learning_rate', type=float, default=2e-4,
+    parser.add_argument('--learning_rate', type=float, default=5e-5,
                        help='Learning rate')
     parser.add_argument('--weight_decay', type=float, default=1e-4,
                        help='Weight decay')
-    parser.add_argument('--lambda_rd', type=float, default=2048,
-                       choices=[256, 512, 1024, 2048, 4096],
+    parser.add_argument('--lambda_rd', type=float, default=8192,
+                       choices=[256, 512, 1024, 2048, 4096, 8192, 16384],
                        help='Rate-distortion tradeoff parameter')
     parser.add_argument('--seed', type=int, default=42,
                        help='Random seed')
