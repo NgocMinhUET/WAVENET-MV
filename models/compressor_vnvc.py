@@ -93,9 +93,9 @@ class EntropyBottleneck(nn.Module):
         scales = scales + self._scales.view(1, -1, 1, 1)
         
         # Gaussian conditional entropy model
-        _, likelihoods = self.gaussian_conditional(y, scales)
+        y_hat, likelihoods = self.gaussian_conditional(y, scales)
         
-        return y, likelihoods
+        return y_hat, likelihoods
     
     def compress(self, y):
         """Compress to bitstream"""
