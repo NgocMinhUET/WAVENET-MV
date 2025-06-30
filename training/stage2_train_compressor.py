@@ -237,8 +237,15 @@ class Stage2Trainer:
                 x_hat, likelihoods, y_quantized = self.compressor_model(mixed_features)
                 compressed_features = x_hat
                 
-                # Calculate BPP from likelihoods - FIX: Dùng latent space size
-                bpp = torch.log(likelihoods).sum() / (-math.log(2) * y_quantized.size(0) * y_quantized.size(2) * y_quantized.size(3))
+                # Calculate BPP from likelihoods - CORRECTED
+                # Original image dimensions for BPP calculation
+                batch_size = mixed_features.size(0)
+                num_pixels = mixed_features.size(2) * mixed_features.size(3)  # H * W của original
+                
+                # Rate calculation: -log2(likelihoods) summed over all dimensions
+                log_likelihoods = torch.log(likelihoods.clamp(min=1e-10))
+                total_bits = -log_likelihoods.sum() / math.log(2)
+                bpp = total_bits / (batch_size * num_pixels)
                 
                 # DEBUG: Check shapes và tensor values
                 if epoch == 0 and batch_idx == 0:
@@ -264,7 +271,7 @@ class Stage2Trainer:
                 mse_loss = self.mse_criterion(compressed_features, mixed_features)
                 
                 # Total loss: λ·MSE + BPP
-                total_loss = self.args.lambda_rd * mse_loss + bpp.mean()
+                total_loss = self.args.lambda_rd * mse_loss + bpp
             
             # Backward pass
             self.scaler.scale(total_loss).backward()
@@ -277,13 +284,13 @@ class Stage2Trainer:
             # Update running losses
             running_loss += total_loss.item()
             running_mse_loss += mse_loss.item()
-            running_bpp_loss += bpp.mean().item()
+            running_bpp_loss += bpp.item()
             
             # Update progress bar
             progress_bar.set_postfix({
                 'Loss': f'{total_loss.item():.6f}',
                 'MSE': f'{mse_loss.item():.6f}',
-                'BPP': f'{bpp.mean().item():.4f}',
+                'BPP': f'{bpp.item():.4f}',
                 'LR': f'{self.scheduler.get_last_lr()[0]:.2e}'
             })
             
@@ -291,7 +298,7 @@ class Stage2Trainer:
             global_step = epoch * num_batches + batch_idx
             self.writer.add_scalar('Train/TotalLoss', total_loss.item(), global_step)
             self.writer.add_scalar('Train/MSELoss', mse_loss.item(), global_step)
-            self.writer.add_scalar('Train/BPPLoss', bpp.mean().item(), global_step)
+            self.writer.add_scalar('Train/BPPLoss', bpp.item(), global_step)
             self.writer.add_scalar('Train/LR', self.scheduler.get_last_lr()[0], global_step)
         
         avg_loss = running_loss / num_batches
@@ -323,8 +330,15 @@ class Stage2Trainer:
                     x_hat, likelihoods, y_quantized = self.compressor_model(mixed_features)
                     compressed_features = x_hat
                     
-                    # Calculate BPP from likelihoods - FIX: Dùng latent space size
-                    bpp = torch.log(likelihoods).sum() / (-math.log(2) * y_quantized.size(0) * y_quantized.size(2) * y_quantized.size(3))
+                    # Calculate BPP from likelihoods - CORRECTED
+                    # Original image dimensions for BPP calculation
+                    batch_size = mixed_features.size(0)
+                    num_pixels = mixed_features.size(2) * mixed_features.size(3)  # H * W của original
+                    
+                    # Rate calculation: -log2(likelihoods) summed over all dimensions
+                    log_likelihoods = torch.log(likelihoods.clamp(min=1e-10))
+                    total_bits = -log_likelihoods.sum() / math.log(2)
+                    bpp = total_bits / (batch_size * num_pixels)
                     
                     # Shape check cho validation
                     if compressed_features.shape != mixed_features.shape:
@@ -337,11 +351,11 @@ class Stage2Trainer:
                     
                     # Losses
                     mse_loss = self.mse_criterion(compressed_features, mixed_features)
-                    total_loss = self.args.lambda_rd * mse_loss + bpp.mean()
+                    total_loss = self.args.lambda_rd * mse_loss + bpp
                 
                 val_loss += total_loss.item()
                 val_mse_loss += mse_loss.item()
-                val_bpp_loss += bpp.mean().item()
+                val_bpp_loss += bpp.item()
         
         avg_val_loss = val_loss / num_batches
         avg_val_mse = val_mse_loss / num_batches
