@@ -173,7 +173,7 @@ Sau khi hoàn thành workflow này, bạn sẽ có:
 - ✅ **Monitoring system** đầy đủ
 
 ---
-*💡 Tip: Bookmark file này và follow từng bước cho lần đầu setup!*
+*💡 Tip: Bookmark file này và follow từng bước cho lần đầu setup!* 
 
 ## 🔄 **GIT WORKFLOW: DEVELOPMENT (Máy A) → SERVER (Máy B)**
 

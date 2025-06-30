@@ -18,7 +18,7 @@ init_git_repo.bat
 # 1. Khởi tạo git repository
 git init
 
-# 2. Cấu hình user (nếu chưa có)
+# 2. Cấu hình user (nếu chưa có) -S
 git config --global user.name "Your Name"
 git config --global user.email "your.email@domain.com"
 
