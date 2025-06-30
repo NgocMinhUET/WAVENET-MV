@@ -454,8 +454,8 @@ def main():
                        help='Learning rate')
     parser.add_argument('--weight_decay', type=float, default=1e-4,
                        help='Weight decay')
-    parser.add_argument('--lambda_rd', type=float, default=512,
-                       choices=[256, 512, 1024],
+    parser.add_argument('--lambda_rd', type=float, default=2048,
+                       choices=[256, 512, 1024, 2048, 4096],
                        help='Rate-distortion tradeoff parameter')
     parser.add_argument('--seed', type=int, default=42,
                        help='Random seed')
