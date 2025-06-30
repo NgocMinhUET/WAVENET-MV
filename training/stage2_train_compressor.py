@@ -237,8 +237,8 @@ class Stage2Trainer:
                 x_hat, likelihoods, y_quantized = self.compressor_model(mixed_features)
                 compressed_features = x_hat
                 
-                # Calculate BPP from likelihoods
-                bpp = torch.log(likelihoods).sum() / (-math.log(2) * mixed_features.size(0) * mixed_features.size(2) * mixed_features.size(3))
+                # Calculate BPP from likelihoods - FIX: Dùng latent space size
+                bpp = torch.log(likelihoods).sum() / (-math.log(2) * y_quantized.size(0) * y_quantized.size(2) * y_quantized.size(3))
                 
                 # DEBUG: Check shapes và tensor values
                 if epoch == 0 and batch_idx == 0:
@@ -323,8 +323,8 @@ class Stage2Trainer:
                     x_hat, likelihoods, y_quantized = self.compressor_model(mixed_features)
                     compressed_features = x_hat
                     
-                    # Calculate BPP from likelihoods
-                    bpp = torch.log(likelihoods).sum() / (-math.log(2) * mixed_features.size(0) * mixed_features.size(2) * mixed_features.size(3))
+                    # Calculate BPP from likelihoods - FIX: Dùng latent space size
+                    bpp = torch.log(likelihoods).sum() / (-math.log(2) * y_quantized.size(0) * y_quantized.size(2) * y_quantized.size(3))
                     
                     # Shape check cho validation
                     if compressed_features.shape != mixed_features.shape:

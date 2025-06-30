@@ -232,9 +232,9 @@ class CompressorVNVC(nn.Module):
         # Distortion (MSE reconstruction loss)
         distortion = F.mse_loss(x_hat, x)
         
-        # Rate (bits per pixel)
-        batch_size = x.size(0)
-        num_pixels = x.size(2) * x.size(3)  # H * W
+        # Rate (bits per pixel) - FIX: Dùng latent space size từ likelihoods
+        batch_size = likelihoods.size(0)
+        num_pixels = likelihoods.size(2) * likelihoods.size(3)  # H/16 * W/16
         
         # Compute rate từ likelihoods
         log_likelihoods = torch.log(likelihoods.clamp(min=1e-10))
@@ -295,9 +295,9 @@ class MultiLambdaCompressorVNVC(nn.Module):
         # Distortion (MSE reconstruction loss)
         distortion = F.mse_loss(x_hat, x)
         
-        # Rate (bits per pixel)
-        batch_size = x.size(0)
-        num_pixels = x.size(2) * x.size(3)  # H * W
+        # Rate (bits per pixel) - FIX: Dùng latent space size từ likelihoods  
+        batch_size = likelihoods.size(0)
+        num_pixels = likelihoods.size(2) * likelihoods.size(3)  # H/16 * W/16
         
         # Compute rate từ likelihoods
         log_likelihoods = torch.log(likelihoods.clamp(min=1e-10))
