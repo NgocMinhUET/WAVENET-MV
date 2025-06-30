@@ -18,10 +18,10 @@ class RoundWithNoise(torch.autograd.Function):
     
     @staticmethod
     def forward(ctx, input):
-        # During forward, add uniform noise for training
+        # During training, add uniform noise and then round
         if ctx.needs_input_grad[0] and input.requires_grad:
             noise = torch.empty_like(input).uniform_(-0.5, 0.5)
-            return input + noise
+            return torch.round(input + noise)  # FIX: Thêm torch.round()!
         else:
             # During inference, just round
             return torch.round(input)
@@ -89,11 +89,14 @@ class EntropyBottleneck(nn.Module):
         scales = self.context_prediction(y)
         scales = torch.exp(scales)  # Ensure positive scales
         
-        # Add learned global scales
-        scales = scales + self._scales.view(1, -1, 1, 1)
+        # Add learned global scales với clamping để tránh scales quá lớn/nhỏ
+        scales = scales + self._scales.view(1, -1, 1, 1).clamp(min=0.1, max=10.0)
         
         # Gaussian conditional entropy model
         y_hat, likelihoods = self.gaussian_conditional(y, scales)
+        
+        # Ensure likelihoods are in reasonable range
+        likelihoods = likelihoods.clamp(min=1e-10, max=1.0)
         
         return y_hat, likelihoods
     
