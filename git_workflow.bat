@@ -37,7 +37,7 @@ if "%1"=="" (
 git commit -m "%commit_msg%"
 
 echo 📤 Pushing to remote...
-git push origin main
+git push origin master
 
 echo ✅ Successfully pushed to git!
 echo 🖥️ Now you can pull on Ubuntu server and run training.

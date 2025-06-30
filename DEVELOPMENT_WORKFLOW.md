@@ -44,7 +44,7 @@ chmod +x server_setup.sh
 ```bash
 # 1. Pull code mới nhất
 cd wavenet-mv
-git pull origin main
+git pull origin master
 
 # 2. Activate environment
 source wavenet-prod/bin/activate
@@ -91,7 +91,7 @@ black . && isort .
 #### Trên Ubuntu:
 ```bash
 # Quick pull + train
-git pull && python training/stage1_train_wavelet.py
+git pull origin master && python training/stage1_train_wavelet.py
 
 # Monitor training
 htop  # System resources
