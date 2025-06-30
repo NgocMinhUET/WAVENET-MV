@@ -27,6 +27,23 @@ from models.wavelet_transform_cnn import WaveletTransformCNN
 from datasets.dataset_loaders import COCODatasetLoader, DAVISDatasetLoader
 
 
+def stage1_collate_fn(batch):
+    """
+    Custom collate function cho Stage 1 - chỉ lấy images
+    Bỏ qua annotations để tránh tensor size mismatch
+    """
+    images = []
+    for item in batch:
+        if isinstance(item, dict):
+            images.append(item['image'])
+        else:
+            images.append(item[0])  # Tuple format
+    
+    return {
+        'image': torch.stack(images, 0)
+    }
+
+
 def set_seed(seed=42):
     """Set seed cho reproducibility"""
     random.seed(seed)
@@ -130,7 +147,8 @@ class WaveletTrainer:
             batch_size=self.args.batch_size,
             shuffle=True,
             num_workers=self.args.num_workers,
-            pin_memory=True
+            pin_memory=True,
+            collate_fn=stage1_collate_fn
         )
         
         self.val_loader = DataLoader(
@@ -138,7 +156,8 @@ class WaveletTrainer:
             batch_size=self.args.batch_size,
             shuffle=False,
             num_workers=self.args.num_workers,
-            pin_memory=True
+            pin_memory=True,
+            collate_fn=stage1_collate_fn
         )
         
     def train_epoch(self, epoch):
@@ -311,7 +330,7 @@ def main():
                        help='Random seed')
     
     # System arguments
-    parser.add_argument('--num_workers', type=int, default=4,
+    parser.add_argument('--num_workers', type=int, default=0,
                        help='Number of data loader workers')
     parser.add_argument('--resume', type=str, default=None,
                        help='Resume from checkpoint')
