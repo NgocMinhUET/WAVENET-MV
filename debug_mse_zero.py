@@ -294,11 +294,58 @@ def debug_compression_fixes():
         print("✅ BALANCED LOSS: MSE and BPP components are balanced!")
         return True
 
+def create_mse_reference_table():
+    """Create MSE reference table for compression evaluation"""
+    print("📋 MSE REFERENCE TABLE FOR COMPRESSION")
+    print("=" * 70)
+    print(f"{'MSE Range':<15} {'PSNR (dB)':<12} {'Quality':<15} {'Status':<15}")
+    print("-" * 70)
+    
+    # Calculate PSNR from MSE for normalized images [0,1]
+    def mse_to_psnr(mse):
+        if mse == 0:
+            return float('inf')
+        return 20 * math.log10(1.0 / math.sqrt(mse))
+    
+    mse_ranges = [
+        (0.0, "Perfect", "Identity Function", "❌ BAD"),
+        (1e-6, f"{mse_to_psnr(1e-6):.1f}", "Ultra High", "⚠️ SUSPICIOUS"),
+        (1e-4, f"{mse_to_psnr(1e-4):.1f}", "Very High", "✅ EXCELLENT"),
+        (1e-3, f"{mse_to_psnr(1e-3):.1f}", "High", "✅ EXCELLENT"),
+        (0.01, f"{mse_to_psnr(0.01):.1f}", "Good", "✅ GOOD"),
+        (0.1, f"{mse_to_psnr(0.1):.1f}", "Acceptable", "✅ OK"),
+        (1.0, f"{mse_to_psnr(1.0):.1f}", "Low", "⚠️ HIGH DISTORTION"),
+        (10.0, f"{mse_to_psnr(10.0):.1f}", "Very Low", "❌ BAD"),
+    ]
+    
+    for mse, psnr, quality, status in mse_ranges:
+        if mse == 0.0:
+            print(f"{mse:<15} {'∞':<12} {quality:<15} {status}")
+        else:
+            print(f"{mse:<15} {psnr:<12} {quality:<15} {status}")
+    
+    print("-" * 70)
+    print("\n💡 INTERPRETATION FOR WAVENET-MV STAGE 2:")
+    print("• MSE < 1e-6: 🚨 Likely identity function (no compression)")
+    print("• MSE 1e-6 to 1e-3: ⚠️ Monitor for collapse, but could be good")
+    print("• MSE 1e-3 to 0.1: ✅ IDEAL RANGE for neural compression")
+    print("• MSE 0.1 to 1.0: ⚠️ High distortion, check λ value")
+    print("• MSE > 1.0: ❌ Too much distortion")
+    
+    print("\n🎯 TARGET FOR λ=128:")
+    print("• Expected MSE: 0.001 - 0.01 (PSNR 20-30 dB)")
+    print("• Component balance: 10-50% MSE, 50-90% BPP")
+    print("• Stable across epochs (no sudden drops)")
+
 def main():
     """Main debugging function"""
     print("=" * 60)
     print("🚨 DEBUGGING MSE → 0 ISSUE IN STAGE 2")
     print("=" * 60)
+    print()
+    
+    # NEW: Show MSE reference table first
+    create_mse_reference_table()
     print()
     
     debug_quantization_levels()
@@ -326,6 +373,7 @@ def main():
         print("2. 📊 Monitor MSE values - should be 0.001-0.1 range")
         print("3. 📊 Monitor BPP values - should be 1-10 range")
         print("4. 🔍 Check debug output trong first epoch")
+        print("5. ✅ MSE < 0.1 là BÌNH THƯỜNG và MONG MUỐN!")
     else:
         print("❌ ISSUES REMAINING: Some fixes may not be working")
         print("💡 DEBUGGING STEPS:")
@@ -340,6 +388,7 @@ def main():
     print("3. 🔧 Reduce learning rate")
     print("4. 🔧 Add regularization to prevent perfect reconstruction")
     print("5. 🔧 Check if CompressorVNVC analysis/synthesis transforms are too powerful")
+    print("6. ✅ Remember: MSE < 0.1 is NORMAL for good compression!")
 
 if __name__ == "__main__":
     main() 

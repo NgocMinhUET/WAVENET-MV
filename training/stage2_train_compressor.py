@@ -277,6 +277,40 @@ class Stage2Trainer:
                 
                 # Total loss: λ·MSE + BPP
                 total_loss = self.args.lambda_rd * mse_loss + bpp
+                
+                # MSE Health Check (first epoch only)
+                if epoch == 0 and batch_idx == 0:
+                    mse_component = self.args.lambda_rd * mse_loss
+                    bpp_component = bpp
+                    total_loss_val = total_loss.item()
+                    
+                    mse_ratio = (mse_component / total_loss_val * 100).item()
+                    bpp_ratio = (bpp_component / total_loss_val * 100).item()
+                    
+                    print(f"🏥 MSE HEALTH CHECK:")
+                    print(f"   MSE Loss: {mse_loss.item():.6f}")
+                    print(f"   λ*MSE: {mse_component.item():.4f} ({mse_ratio:.1f}%)")
+                    print(f"   BPP: {bpp_component.item():.4f} ({bpp_ratio:.1f}%)")
+                    print(f"   Total: {total_loss_val:.4f}")
+                    
+                    # Health indicators
+                    if mse_loss < 1e-6:
+                        print("   ❌ MSE TOO SMALL: Potential identity function!")
+                    elif mse_loss < 1e-3:
+                        print("   ⚠️ MSE VERY SMALL: Monitor for collapse")
+                    elif mse_loss < 0.1:
+                        print("   ✅ MSE HEALTHY: Good compression range")
+                    else:
+                        print("   ⚠️ MSE LARGE: High distortion, consider increasing λ")
+                    
+                    if mse_ratio < 1.0:
+                        print("   ❌ MSE IGNORED: MSE component < 1% of total loss!")
+                    elif mse_ratio < 10.0:
+                        print("   ⚠️ MSE WEAK: MSE component < 10% of total loss")
+                    elif mse_ratio > 90.0:
+                        print("   ⚠️ BPP IGNORED: BPP component < 10% of total loss")  
+                    else:
+                        print("   ✅ BALANCED: Good MSE/BPP balance")
             
             # Backward pass
             self.scaler.scale(total_loss).backward()
