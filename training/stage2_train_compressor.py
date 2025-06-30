@@ -13,6 +13,7 @@ import argparse
 import math
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
@@ -239,6 +240,26 @@ class Stage2Trainer:
                 # Calculate BPP from likelihoods
                 bpp = torch.log(likelihoods).sum() / (-math.log(2) * mixed_features.size(0) * mixed_features.size(2) * mixed_features.size(3))
                 
+                # DEBUG: Check shapes và tensor values
+                if epoch == 0 and batch_idx == 0:
+                    print(f"🔍 DEBUG - Mixed features: {mixed_features.shape}, range: [{mixed_features.min():.4f}, {mixed_features.max():.4f}]")
+                    print(f"🔍 DEBUG - Compressed features: {compressed_features.shape}, range: [{compressed_features.min():.4f}, {compressed_features.max():.4f}]")
+                    diff = torch.abs(compressed_features - mixed_features)
+                    print(f"🔍 DEBUG - Difference: mean={diff.mean():.8f}, max={diff.max():.8f}")
+                    if diff.max() < 1e-6:
+                        print("🚨 BUG: CompressorVNVC acting as identity function!")
+                
+                # Shape check và resize nếu cần
+                if compressed_features.shape != mixed_features.shape:
+                    print(f"⚠️ Shape mismatch: {compressed_features.shape} vs {mixed_features.shape}")
+                    compressed_features = F.interpolate(
+                        compressed_features,
+                        size=mixed_features.shape[2:],
+                        mode='bilinear',
+                        align_corners=False
+                    )
+                    print(f"✅ Resized to: {compressed_features.shape}")
+                
                 # Reconstruction loss (MSE)
                 mse_loss = self.mse_criterion(compressed_features, mixed_features)
                 
@@ -304,6 +325,15 @@ class Stage2Trainer:
                     
                     # Calculate BPP from likelihoods
                     bpp = torch.log(likelihoods).sum() / (-math.log(2) * mixed_features.size(0) * mixed_features.size(2) * mixed_features.size(3))
+                    
+                    # Shape check cho validation
+                    if compressed_features.shape != mixed_features.shape:
+                        compressed_features = F.interpolate(
+                            compressed_features,
+                            size=mixed_features.shape[2:],
+                            mode='bilinear',
+                            align_corners=False
+                        )
                     
                     # Losses
                     mse_loss = self.mse_criterion(compressed_features, mixed_features)
