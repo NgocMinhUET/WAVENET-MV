@@ -293,7 +293,7 @@ def main():
     # Dataset arguments
     parser.add_argument('--dataset', type=str, choices=['coco', 'davis'], default='coco',
                        help='Dataset to use')
-    parser.add_argument('--data_dir', type=str, default='datasets/',
+    parser.add_argument('--data_dir', type=str, default='datasets/COCO',
                        help='Dataset directory')
     parser.add_argument('--image_size', type=int, default=256,
                        help='Input image size')
