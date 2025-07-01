@@ -197,7 +197,10 @@ class ImprovedCompressorVNVC(nn.Module):
         self.quantizer = ImprovedQuantizerVNVC()
         
         # Enhanced entropy bottleneck
-        from models.compressor_vnvc import EntropyBottleneck
+        try:
+            from models.compressor_vnvc import EntropyBottleneck
+        except ModuleNotFoundError:
+            from compressor_vnvc import EntropyBottleneck
         self.entropy_bottleneck = EntropyBottleneck(latent_channels, init_scale=0.2)
         
     def forward(self, x):
