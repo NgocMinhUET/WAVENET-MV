@@ -345,4 +345,182 @@ ps aux | grep python
 - Commit hash: [git rev-parse HEAD]
 - Disk space: [df -h]
 - GPU info: [nvidia-smi]
-``` 
+```
+
+## 🚀 **COMPLETE 3-STAGE TRAINING PIPELINE**
+
+### **🎯 Toàn Cảnh Workflow**
+```
+Stage 1: WaveletCNN (30 epochs) → Stage 2: Compressor (40 epochs) → Stage 3: AI Heads (50 epochs)
+```
+
+### **📋 Stage-by-Stage Commands**
+
+#### **Stage 1: Wavelet Training** ✅
+```bash
+python training/stage1_train_wavelet.py \
+    --dataset coco \
+    --data_dir datasets/COCO_Official \
+    --epochs 30 \
+    --batch_size 8
+```
+
+#### **Stage 2: Compressor Training** ✅ (FIXED BUGS)
+```bash
+python training/stage2_train_compressor.py \
+    --dataset coco \
+    --data_dir datasets/COCO_Official \
+    --stage1_checkpoint checkpoints/stage1_wavelet_coco_best.pth \
+    --lambda_rd 128 \
+    --epochs 40 \
+    --batch_size 8
+```
+
+#### **🆕 Stage 3: AI Heads Training** 
+```bash
+# Detection Only
+python training/stage3_train_ai.py \
+    --dataset coco \
+    --data_dir datasets/COCO_Official \
+    --stage1_checkpoint checkpoints/stage1_wavelet_coco_best.pth \
+    --stage2_checkpoint checkpoints/stage2_compressor_coco_lambda128_best.pth \
+    --lambda_rd 128 \
+    --enable_detection \
+    --epochs 50 \
+    --batch_size 4
+
+# Segmentation Only  
+python training/stage3_train_ai.py \
+    --dataset coco \
+    --data_dir datasets/COCO_Official \
+    --stage1_checkpoint checkpoints/stage1_wavelet_coco_best.pth \
+    --stage2_checkpoint checkpoints/stage2_compressor_coco_lambda128_best.pth \
+    --lambda_rd 128 \
+    --enable_segmentation \
+    --epochs 50 \
+    --batch_size 4
+
+# Both Tasks
+python training/stage3_train_ai.py \
+    --dataset coco \
+    --data_dir datasets/COCO_Official \
+    --stage1_checkpoint checkpoints/stage1_wavelet_coco_best.pth \
+    --stage2_checkpoint checkpoints/stage2_compressor_coco_lambda128_best.pth \
+    --lambda_rd 128 \
+    --enable_detection \
+    --enable_segmentation \
+    --epochs 50 \
+    --batch_size 4
+```
+
+---
+
+## 🎯 **ROADMAP SAU KHI HOÀN THÀNH STAGE 2**
+
+### **Bước 1: Kiểm Tra Stage 2 Results** 
+```bash
+# Kiểm tra checkpoints
+ls -la checkpoints/stage2_*
+
+# Kiểm tra TensorBoard logs
+tensorboard --logdir runs/stage2_*
+
+# Expected files:
+# - checkpoints/stage2_compressor_coco_lambda128_best.pth
+# - checkpoints/stage2_compressor_coco_lambda128_latest.pth
+```
+
+### **Bước 2: Push Stage 2 Results (Windows)**
+```bash
+git add .
+git commit -m "Complete Stage 2: Compressor training with MSE fixes
+- MSE stable at 0.001-0.1 range (not collapsing)
+- BPP in 1-10 range (proper calculation)  
+- Ready for Stage 3 AI heads training"
+git push origin master
+```
+
+### **Bước 3: Start Stage 3 Training (Server)**
+```bash
+# Pull latest changes
+git pull origin master
+
+# Start with detection task (easier to debug)
+python training/stage3_train_ai.py \
+    --dataset coco \
+    --data_dir datasets/COCO_Official \
+    --stage1_checkpoint checkpoints/stage1_wavelet_coco_best.pth \
+    --stage2_checkpoint checkpoints/stage2_compressor_coco_lambda128_best.pth \
+    --lambda_rd 128 \
+    --enable_detection \
+    --epochs 50 \
+    --batch_size 4 \
+    --learning_rate 1e-4
+```
+
+### **Bước 4: Monitor Stage 3 Training**
+```bash
+# TensorBoard monitoring
+tensorboard --logdir runs/stage3_ai_heads_*
+
+# Expected logs:
+# - Train/TotalLoss
+# - Train/DetectionLoss  
+# - Train/SegmentationLoss
+# - Val/TotalLoss
+```
+
+### **Bước 5: Evaluation & Comparison**
+```bash
+# Sau khi Stage 3 hoàn thành
+python evaluation/codec_metrics.py \
+    --model_path checkpoints/stage3_ai_heads_coco_best.pth \
+    --dataset coco \
+    --output_dir results/
+
+# Compare với baselines
+python evaluation/compare_baselines.py \
+    --wavenet_path checkpoints/stage3_ai_heads_coco_best.pth \
+    --output_csv results/comparison.csv
+```
+
+---
+
+## 📊 **FULL PIPELINE ARCHITECTURE**
+
+```
+Input Image (3×256×256)
+    ↓
+Stage 1: WaveletCNN → Wavelet Coeffs (4×64×H×W) 
+    ↓  
+Stage 2a: AdaMixNet → Mixed Features (128×H/4×W/4)
+    ↓
+Stage 2b: CompressorVNVC → Compressed Features (128×H/4×W/4) + BPP
+    ↓
+Stage 3a: YOLO-tiny → Detection Boxes [x,y,w,h,conf,class]
+Stage 3b: SegFormer → Segmentation Masks (21×H×W)
+```
+
+---
+
+## 🎉 **SUCCESS CRITERIA**
+
+### **Stage 2 Completion Indicators:**
+- ✅ MSE: 0.001-0.1 (stable, không collapse)
+- ✅ BPP: 1-10 (reasonable compression rate)
+- ✅ Health check: "✅ MSE HEALTHY" + "✅ BALANCED"
+- ✅ Debug: "✅ CompressorVNVC applying compression"
+
+### **Stage 3 Success Indicators:**
+- ✅ Detection Loss: Decreasing smoothly
+- ✅ Segmentation Loss: Converging  
+- ✅ Frozen pipeline: Compression features remain consistent
+- ✅ GPU memory: Efficient usage với batch_size=4
+
+### **Final Pipeline Success:**
+- ✅ Full WAVENET-MV working end-to-end
+- ✅ Competitive với JPEG/H.264 baselines
+- ✅ Real-time inference capable
+- ✅ Multiple task performance
+
+--- 
