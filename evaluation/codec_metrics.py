@@ -169,7 +169,7 @@ class CodecEvaluator:
         
         # Alternative: Update entire compressor if it has update method
         if hasattr(self.compressor, 'update'):
-            self.compressor.update()
+            self.compressor.update()  # FIXED: Remove force parameter
             print("✓ Compressor entropy models updated")
         
         print("✓ Models loaded and entropy models initialized successfully")
