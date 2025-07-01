@@ -14,37 +14,47 @@ import math
 
 
 class RoundWithNoise(torch.autograd.Function):
-    """Round-with-noise quantizer for training"""
+    """Round-with-noise quantizer with scaling for small values"""
     
     @staticmethod
-    def forward(ctx, input):
+    def forward(ctx, input, scale_factor=4.0):
+        # FIXED: Scale up small values để preserve information
+        scaled_input = input * scale_factor
+        
         # During training, add uniform noise and then round
         if ctx.needs_input_grad[0] and input.requires_grad:
-            noise = torch.empty_like(input).uniform_(-0.5, 0.5)
-            return torch.round(input + noise)  # FIX: Thêm torch.round()!
+            noise = torch.empty_like(scaled_input).uniform_(-0.5, 0.5)
+            quantized = torch.round(scaled_input + noise)
         else:
             # During inference, just round
-            return torch.round(input)
+            quantized = torch.round(scaled_input)
+            
+        # Scale back down
+        return quantized / scale_factor
     
     @staticmethod  
     def backward(ctx, grad_output):
-        # Straight-through estimator
-        return grad_output
+        # Straight-through estimator - pass gradients through unchanged
+        return grad_output, None
 
 
 class QuantizerVNVC(nn.Module):
-    """Quantizer module với round-with-noise"""
+    """Quantizer module với improved round-with-noise"""
     
-    def __init__(self):
+    def __init__(self, scale_factor=4.0):
         super().__init__()
+        self.scale_factor = scale_factor
         
     def forward(self, x):
-        """Apply quantization"""
-        return RoundWithNoise.apply(x)
+        """Apply quantization with scaling"""
+        return RoundWithNoise.apply(x, self.scale_factor)
     
     def quantize(self, x):
         """Explicit quantization (for inference)"""
-        return torch.round(x)
+        # Scale up, round, scale down
+        scaled = x * self.scale_factor
+        quantized = torch.round(scaled)
+        return quantized / self.scale_factor
 
 
 class EntropyBottleneck(nn.Module):
@@ -89,8 +99,8 @@ class EntropyBottleneck(nn.Module):
         scales = self.context_prediction(y)
         scales = torch.exp(scales)  # Ensure positive scales
         
-        # Add learned global scales với SMALLER clamping để tăng quantization effect
-        scales = scales + self._scales.view(1, -1, 1, 1).clamp(min=0.01, max=2.0)  # FIXED: Smaller range (0.01-2.0 instead of 0.1-10.0)
+        # Add learned global scales với BETTER clamping để maintain quantization quality
+        scales = scales + self._scales.view(1, -1, 1, 1).clamp(min=0.1, max=4.0)  # FIXED: Better range (0.1-4.0)
         
         # Gaussian conditional entropy model
         y_hat, likelihoods = self.gaussian_conditional(y, scales)
@@ -152,8 +162,8 @@ class CompressorVNVC(nn.Module):
             deconv(latent_channels, input_channels, kernel_size=5, stride=2)    # ×4
         )
         
-        # Quantizer
-        self.quantizer = QuantizerVNVC()
+        # Quantizer with scale factor để handle small values
+        self.quantizer = QuantizerVNVC(scale_factor=4.0)
         
         # Entropy bottleneck
         self.entropy_bottleneck = EntropyBottleneck(latent_channels)
