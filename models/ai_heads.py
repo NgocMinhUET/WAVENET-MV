@@ -30,12 +30,15 @@ class YOLOTinyHead(nn.Module):
         self.num_anchors = num_anchors
         self.input_size = input_size
         
-        # Feature adapter từ compressed features
+        # Feature adapter từ compressed features (with downsampling)
         self.feature_adapter = nn.Sequential(
             nn.Conv2d(input_channels, 256, 3, padding=1),
             nn.BatchNorm2d(256),
             nn.ReLU(inplace=True),
-            nn.Conv2d(256, 512, 3, padding=1),
+            nn.Conv2d(256, 512, 3, stride=2, padding=1),  # Downsample by 2x
+            nn.BatchNorm2d(512),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(512, 512, 3, stride=2, padding=1),  # Downsample by 2x again
             nn.BatchNorm2d(512),
             nn.ReLU(inplace=True)
         )

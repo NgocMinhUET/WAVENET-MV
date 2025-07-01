@@ -398,6 +398,7 @@ class Stage3Trainer:
                     print("⚠️ Warning: No task data found, using fallback loss")
             
             # Backward pass
+            self.optimizer.zero_grad()  # Clear gradients first!
             self.scaler.scale(total_loss).backward()
             self.scaler.step(self.optimizer)
             self.scaler.update()
