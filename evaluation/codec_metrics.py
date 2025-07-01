@@ -160,7 +160,19 @@ class CodecEvaluator:
         self.adamixnet.eval()
         self.compressor.eval()
         
-        print("✓ Models loaded successfully")
+        # CRITICAL: Update entropy models for CompressAI  
+        print("🔄 Updating entropy models...")
+        if hasattr(self.compressor, 'entropy_bottleneck'):
+            if hasattr(self.compressor.entropy_bottleneck, 'gaussian_conditional'):
+                self.compressor.entropy_bottleneck.gaussian_conditional.update()
+                print("✓ GaussianConditional updated")
+        
+        # Alternative: Update entire compressor if it has update method
+        if hasattr(self.compressor, 'update'):
+            self.compressor.update()
+            print("✓ Compressor entropy models updated")
+        
+        print("✓ Models loaded and entropy models initialized successfully")
         
     def _custom_collate_fn(self, batch):
         """Custom collate function to handle COCO dataset safely"""

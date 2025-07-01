@@ -248,6 +248,17 @@ class CompressorVNVC(nn.Module):
         rd_loss = self.lambda_rd * distortion + rate
         
         return rd_loss, distortion, rate
+    
+    def update(self, force=False):
+        """
+        Update entropy models - CRITICAL for CompressAI compatibility
+        Must be called before using compress/decompress methods
+        """
+        print(f"🔄 Updating CompressorVNVC (λ={self.lambda_rd}) entropy models...")
+        if hasattr(self.entropy_bottleneck, 'gaussian_conditional'):
+            self.entropy_bottleneck.gaussian_conditional.update(force=force)
+            print(f"✓ EntropyBottleneck GaussianConditional updated for λ={self.lambda_rd}")
+        print(f"✅ CompressorVNVC (λ={self.lambda_rd}) entropy models ready for inference")
 
 
 class MultiLambdaCompressorVNVC(nn.Module):
@@ -315,6 +326,13 @@ class MultiLambdaCompressorVNVC(nn.Module):
         rd_loss = self.current_lambda * distortion + rate
         
         return rd_loss, distortion, rate
+    
+    def update(self, force=False):
+        """Update entropy models for all lambda configurations"""
+        print("🔄 Updating MultiLambdaCompressorVNVC entropy models for all λ values...")
+        for lambda_key, compressor in self.compressors.items():
+            compressor.update(force=force)
+        print("✅ MultiLambdaCompressorVNVC ready for inference")
 
 
 def test_compressor_vnvc():
