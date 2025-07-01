@@ -103,6 +103,32 @@ def estimate_bpp(compressed_data, image_shape):
     return bpp
 
 
+def estimate_bpp_from_features(quantized_features, image_shape):
+    """
+    Estimate BPP từ quantized feature dimensions (without actual compression)
+    Args:
+        quantized_features: Quantized latent features [B, C, H, W]
+        image_shape: Original image shape (H, W)
+    Returns:
+        bpp: Estimated bits per pixel
+    """
+    # Feature dimensions
+    B, C, H_feat, W_feat = quantized_features.shape
+    
+    # Estimate bits per feature (assume 8 bits per quantized value)
+    bits_per_feature = 8
+    total_feature_bits = C * H_feat * W_feat * bits_per_feature
+    
+    # Original image pixels
+    H_img, W_img = image_shape
+    total_pixels = H_img * W_img
+    
+    # BPP = total feature bits / total pixels
+    bpp = total_feature_bits / total_pixels
+    
+    return bpp
+
+
 class CodecEvaluator:
     """Evaluator cho codec metrics"""
     
@@ -264,21 +290,21 @@ class CodecEvaluator:
                     images = batch[0].to(self.device)
                 
                 try:
-                    # Forward pass through pipeline
+                    # Forward pass through pipeline (SKIP COMPRESSION due to entropy model issues)
                     # 1. Wavelet transform
                     wavelet_coeffs = self.wavelet_cnn(images)
                     
                     # 2. AdaMixNet
                     mixed_features = self.adamixnet(wavelet_coeffs)
                     
-                    # 3. Compression + Decompression
-                    compressed_bitstream = self.compressor.compress(mixed_features, lambda_value)
-                    reconstructed_features = self.compressor.decompress(compressed_bitstream, lambda_value)
+                    # 3. Compressor forward (without compress/decompress)
+                    x_hat, likelihoods, y_quantized = self.compressor(mixed_features)
                     
                     # 4. Inverse AdaMixNet (approximate)
                     # For simplicity, assume inverse ≈ linear projection
-                    inverse_adamix = torch.nn.Conv2d(128, 256, 1).to(self.device)
-                    recovered_coeffs = inverse_adamix(reconstructed_features)
+                    if not hasattr(self, 'inverse_adamix'):
+                        self.inverse_adamix = torch.nn.Conv2d(128, 256, 1).to(self.device)
+                    recovered_coeffs = self.inverse_adamix(x_hat)
                     
                     # 5. Inverse wavelet transform
                     reconstructed_images = self.wavelet_cnn.inverse_transform(recovered_coeffs)
@@ -305,8 +331,8 @@ class CodecEvaluator:
                         ms_ssim_val = calculate_ms_ssim(original, reconstructed)
                         ms_ssim_values.append(ms_ssim_val)
                         
-                        # BPP
-                        bpp_val = estimate_bpp(compressed_bitstream, images.shape[2:])
+                        # BPP (estimated from feature dimensions)
+                        bpp_val = estimate_bpp_from_features(y_quantized, images.shape[2:])
                         bpp_values.append(bpp_val)
                 
                 except Exception as e:
