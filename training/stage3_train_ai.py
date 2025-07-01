@@ -107,23 +107,29 @@ class Stage3Trainer:
         # Initialize models
         self.setup_models()
         
-        # Loss functions
+        # Setup loss functions
         self.setup_loss_functions()
-        
-        # Mixed precision scaler
-        self.scaler = GradScaler()
         
         # Setup datasets
         self.setup_datasets()
         
-        # Setup optimizer và scheduler
+        # Setup optimizer & scheduler
         self.setup_optimizer()
         
-        # TensorBoard writer
-        self.writer = SummaryWriter(log_dir=f'runs/stage3_ai_heads_{args.dataset}')
+        # Mixed precision training - DISABLED to avoid GradScaler issues
+        # self.scaler = GradScaler()
+        self.use_amp = False  # Disable mixed precision
         
-        # Best model tracking
+        # TensorBoard logging
+        os.makedirs('runs', exist_ok=True)
+        self.writer = SummaryWriter(f'runs/stage3_ai_heads_{args.dataset}_{args.lambda_rd}')
+        
+        # Tracking
         self.best_loss = float('inf')
+        
+        print(f"✓ Stage3Trainer initialized")
+        print(f"✓ Device: {self.device}")
+        print(f"✓ Mixed Precision: {self.use_amp}")  # Should show False
         
     def setup_models(self):
         """Setup models: frozen compression pipeline + trainable AI heads"""
@@ -325,8 +331,8 @@ class Stage3Trainer:
             # Zero gradients
             self.optimizer.zero_grad()
             
-            with autocast():
-                # Get compressed features từ frozen pipeline
+            with torch.cuda.amp.autocast(enabled=self.use_amp):  # Disable AMP
+                # Get compressed features (frozen pipeline)
                 compressed_features = self.get_compressed_features(images)
                 
                 total_loss = 0.0
@@ -384,7 +390,6 @@ class Stage3Trainer:
                                 print(f"🔍 Segmentation targets shape: {seg_targets.shape}")
                                 print(f"🔍 Segmentation pred shape: {seg_pred.shape}")
                         else:
-                            # No segmentation data available
                             seg_loss = torch.tensor(0.01, device=self.device, requires_grad=True)
                             total_loss += seg_loss
                     else:
@@ -397,11 +402,10 @@ class Stage3Trainer:
                     total_loss = torch.tensor(0.01, device=self.device, requires_grad=True)
                     print("⚠️ Warning: No task data found, using fallback loss")
             
-            # Backward pass
-            self.optimizer.zero_grad()  # Clear gradients first!
-            self.scaler.scale(total_loss).backward()
-            self.scaler.step(self.optimizer)
-            self.scaler.update()
+            # Backward pass - Regular training (no mixed precision)
+            self.optimizer.zero_grad()
+            total_loss.backward()
+            self.optimizer.step()
             
             # Update scheduler
             self.scheduler.step()
@@ -448,7 +452,7 @@ class Stage3Trainer:
             for batch in tqdm(self.val_loader, desc='Validation'):
                 images = batch['image'].to(self.device)
                 
-                with autocast():
+                with torch.cuda.amp.autocast(enabled=self.use_amp):  # Disable AMP
                     # Get compressed features
                     compressed_features = self.get_compressed_features(images)
                     
@@ -524,7 +528,7 @@ class Stage3Trainer:
             'optimizer_state_dict': self.optimizer.state_dict(),
             'scheduler_state_dict': self.scheduler.state_dict(),
             'loss': loss,
-            'scaler_state_dict': self.scaler.state_dict(),
+            # 'scaler_state_dict': self.scaler.state_dict(),  # Removed - no scaler
             'args': self.args
         }
         
