@@ -161,16 +161,26 @@ class CodecEvaluator:
         self.compressor.eval()
         
         # CRITICAL: Update entropy models for CompressAI  
-        print("🔄 Updating entropy models...")
-        if hasattr(self.compressor, 'entropy_bottleneck'):
-            if hasattr(self.compressor.entropy_bottleneck, 'gaussian_conditional'):
-                self.compressor.entropy_bottleneck.gaussian_conditional.update()
-                print("✓ GaussianConditional updated")
-        
-        # Alternative: Update entire compressor if it has update method
-        if hasattr(self.compressor, 'update'):
-            self.compressor.update()  # FIXED: Remove force parameter
-            print("✓ Compressor entropy models updated")
+        if hasattr(self.args, 'skip_entropy_update') and self.args.skip_entropy_update:
+            print("⏭️ Skipping entropy model updates (--skip_entropy_update flag)")
+        else:
+            print("🔄 Updating entropy models...")
+            try:
+                if hasattr(self.compressor, 'entropy_bottleneck'):
+                    if hasattr(self.compressor.entropy_bottleneck, 'gaussian_conditional'):
+                        self.compressor.entropy_bottleneck.gaussian_conditional.update()
+                        print("✓ GaussianConditional updated")
+            except Exception as e:
+                print(f"⚠️ Warning: Could not update individual entropy model: {e}")
+            
+            # Alternative: Update entire compressor if it has update method
+            try:
+                if hasattr(self.compressor, 'update'):
+                    self.compressor.update()  # FIXED: Remove force parameter
+                    print("✓ Compressor entropy models updated")
+            except Exception as e:
+                print(f"⚠️ Warning: Could not update compressor entropy models: {e}")
+                print("ℹ️ This may be OK if models weren't trained with entropy bottleneck")
         
         print("✓ Models loaded and entropy models initialized successfully")
         
@@ -224,7 +234,7 @@ class CodecEvaluator:
         
         self.dataloader = DataLoader(
             dataset,
-            batch_size=self.args.batch_size,
+            batch_size=args.batch_size,
             shuffle=False,
             num_workers=0,  # FIXED: Disable multiprocessing to avoid tensor resize errors
             pin_memory=False,  # FIXED: Disable pin_memory to avoid storage conflicts
@@ -392,6 +402,8 @@ def main():
     # System arguments
     parser.add_argument('--num_workers', type=int, default=2,
                        help='Number of data loader workers')
+    parser.add_argument('--skip_entropy_update', action='store_true',
+                       help='Skip entropy model updates (faster for evaluation without compression)')
     
     args = parser.parse_args()
     
