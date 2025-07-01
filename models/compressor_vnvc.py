@@ -252,20 +252,24 @@ class CompressorVNVC(nn.Module):
 
 class MultiLambdaCompressorVNVC(nn.Module):
     """
-    Multi-lambda compressor hỗ trợ λ ∈ {256, 512, 1024}
+    Multi-lambda compressor hỗ trợ λ ∈ {64, 128, 256, 512, 1024, 2048, 4096}
     """
     
     def __init__(self, input_channels=128, latent_channels=192):
         super().__init__()
         
-        # Multiple compressors cho different lambda values
+        # Multiple compressors cho different lambda values - UPDATED to include 128
         self.compressors = nn.ModuleDict({
+            '64': CompressorVNVC(input_channels, latent_channels, lambda_rd=64),
+            '128': CompressorVNVC(input_channels, latent_channels, lambda_rd=128),
             '256': CompressorVNVC(input_channels, latent_channels, lambda_rd=256),
             '512': CompressorVNVC(input_channels, latent_channels, lambda_rd=512), 
-            '1024': CompressorVNVC(input_channels, latent_channels, lambda_rd=1024)
+            '1024': CompressorVNVC(input_channels, latent_channels, lambda_rd=1024),
+            '2048': CompressorVNVC(input_channels, latent_channels, lambda_rd=2048),
+            '4096': CompressorVNVC(input_channels, latent_channels, lambda_rd=4096)
         })
         
-        self.current_lambda = 256  # Default
+        self.current_lambda = 128  # Default - match training
         
     def set_lambda(self, lambda_value):
         """Set current lambda value"""
@@ -340,7 +344,7 @@ def test_compressor_vnvc():
     multi_compressor = MultiLambdaCompressorVNVC(input_channels=128)
     
     # Test different lambda values
-    for lambda_val in [256, 512, 1024]:
+    for lambda_val in [64, 128, 256, 512, 1024]:
         multi_compressor.set_lambda(lambda_val)
         x_hat, likelihoods, y_quantized = multi_compressor(x)
         assert x_hat.shape == x.shape, f"Multi-compressor shape mismatch for λ={lambda_val}"
