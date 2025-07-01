@@ -179,7 +179,7 @@ class Stage3Trainer:
         # 4. YOLO-tiny Head
         if self.args.enable_detection:
             self.yolo_head = YOLOTinyHead(
-                input_channels=128,  # Compressed features
+                input_channels=192,  # FIXED: CompressorVNVC analysis_transform outputs 192 channels
                 num_classes=80,      # COCO classes
                 num_anchors=3
             ).to(self.device)
@@ -187,7 +187,7 @@ class Stage3Trainer:
         # 5. SegFormer-lite Head  
         if self.args.enable_segmentation:
             self.segformer_head = SegFormerLiteHead(
-                input_channels=128,  # Compressed features
+                input_channels=192,  # FIXED: CompressorVNVC analysis_transform outputs 192 channels
                 num_classes=21       # PASCAL VOC classes
             ).to(self.device)
         
