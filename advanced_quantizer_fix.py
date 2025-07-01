@@ -19,7 +19,7 @@ def analyze_pipeline_ranges():
     
     # Create full pipeline
     wavelet_cnn = WaveletTransformCNN(input_channels=3, wavelet_channels=64).to(device)
-    adamixnet = AdaMixNet(input_channels=256, output_channels=128).to(device)  # 4*64=256
+    adamixnet = AdaMixNet(input_channels=256, C_prime=64, C_mix=128).to(device)  # 4*64=256
     compressor = CompressorVNVC(input_channels=128, latent_channels=192, lambda_rd=128).to(device)
     
     # Set to eval mode
