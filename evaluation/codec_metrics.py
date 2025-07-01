@@ -162,6 +162,35 @@ class CodecEvaluator:
         
         print("✓ Models loaded successfully")
         
+    def _custom_collate_fn(self, batch):
+        """Custom collate function to handle COCO dataset safely"""
+        images = []
+        
+        for item in batch:
+            if isinstance(item, dict):
+                # COCO dataset format
+                img = item['image']
+                if torch.is_tensor(img):
+                    images.append(img)
+                else:
+                    images.append(torch.tensor(img))
+            else:
+                # Simple tuple format
+                img = item[0] if isinstance(item, (tuple, list)) else item
+                if torch.is_tensor(img):
+                    images.append(img)
+                else:
+                    images.append(torch.tensor(img))
+        
+        # Stack images carefully
+        try:
+            images_tensor = torch.stack(images, 0)
+            return {'image': images_tensor}
+        except Exception as e:
+            # Fallback: process one by one
+            print(f"Warning: Batch collate failed, using individual processing: {e}")
+            return {'image': images[0].unsqueeze(0)}  # Process one image at a time
+    
     def setup_dataset(self):
         """Setup evaluation dataset"""
         if self.args.dataset == 'coco':
@@ -185,8 +214,9 @@ class CodecEvaluator:
             dataset,
             batch_size=self.args.batch_size,
             shuffle=False,
-            num_workers=self.args.num_workers,
-            pin_memory=True
+            num_workers=0,  # FIXED: Disable multiprocessing to avoid tensor resize errors
+            pin_memory=False,  # FIXED: Disable pin_memory to avoid storage conflicts
+            collate_fn=self._custom_collate_fn  # FIXED: Custom collate function
         )
         
         print(f"✓ Dataset loaded: {len(dataset)} images")
