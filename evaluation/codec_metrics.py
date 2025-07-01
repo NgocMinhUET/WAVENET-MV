@@ -234,7 +234,7 @@ class CodecEvaluator:
         
         self.dataloader = DataLoader(
             dataset,
-            batch_size=args.batch_size,
+            batch_size=self.args.batch_size,
             shuffle=False,
             num_workers=0,  # FIXED: Disable multiprocessing to avoid tensor resize errors
             pin_memory=False,  # FIXED: Disable pin_memory to avoid storage conflicts
