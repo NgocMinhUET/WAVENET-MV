@@ -336,9 +336,9 @@ class Stage3Trainer:
         obj_target[:, :, ::8, ::8] = 1.0  # Every 8th grid cell
         obj_loss = F.binary_cross_entropy_with_logits(obj_pred, obj_target)
         
-        # Classification loss - encourage class prediction diversity
+        # Classification loss - encourage class prediction diversity  
         cls_loss = F.cross_entropy(
-            cls_pred.view(-1, 80), 
+            cls_pred.reshape(-1, 80),  # FIXED: Use reshape instead of view for non-contiguous tensors
             torch.randint(0, 80, (cls_pred.size(0) * cls_pred.size(1) * cls_pred.size(2) * cls_pred.size(3),), 
                          device=cls_pred.device),
             reduction='mean'
