@@ -133,6 +133,31 @@ class AdaMixNet(nn.Module):
             
         return filter_outputs
 
+    def inverse_transform(self, mixed_features):
+        """
+        Approximate inverse transform: mixed_features -> wavelet_coeffs
+        Args:
+            mixed_features: [B, C_mix, H, W] - Output from forward()
+        Returns:
+            wavelet_coeffs: [B, 4*C', H, W] - Approximated wavelet coefficients
+        """
+        B, C_mix, H, W = mixed_features.shape
+        
+        # Simple inverse: Linear projection back to 4*C' channels
+        # This is approximate - in practice you'd want a proper decoder
+        if not hasattr(self, 'inverse_proj'):
+            self.inverse_proj = nn.Conv2d(C_mix, 4 * self.C_prime, 1, bias=False)
+            # Initialize with transpose-like weights
+            with torch.no_grad():
+                # Simple channel replication strategy
+                weight = torch.zeros(4 * self.C_prime, C_mix, 1, 1)
+                for out_c in range(4 * self.C_prime):
+                    in_c = out_c % C_mix  # Cycle through input channels
+                    weight[out_c, in_c, 0, 0] = 1.0
+                self.inverse_proj.weight.copy_(weight)
+        
+        return self.inverse_proj(mixed_features)
+
 
 class EnhancedAdaMixNet(AdaMixNet):
     """

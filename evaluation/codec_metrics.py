@@ -318,18 +318,8 @@ class CodecEvaluator:
                     x_hat, likelihoods, y_quantized = self.compressor(mixed_features)
                     
                     # 4. Inverse AdaMixNet (approximate)
-                    # Approximate inverse: replicate each of 128 channels thành 2 channels để khớp 256 wavelet coeffs
-                    if not hasattr(self, 'inverse_adamix'):
-                        self.inverse_adamix = torch.nn.Conv2d(128, 256, 1, bias=False).to(self.device)
-                        with torch.no_grad():
-                            # Initialize weights để copy: out_c = 2*in_c + offset
-                            weight = torch.zeros(256, 128, 1, 1)
-                            for out_c in range(256):
-                                in_c = out_c // 2  # Map mỗi kênh input tới 2 kênh output
-                                weight[out_c, in_c, 0, 0] = 1.0
-                            self.inverse_adamix.weight.copy_(weight)
-                            self.inverse_adamix.requires_grad_(False)
-                    recovered_coeffs = self.inverse_adamix(x_hat)
+                    # Use AdaMixNet's inverse transform method
+                    recovered_coeffs = self.adamixnet.inverse_transform(x_hat)
                     
                     # 5. Inverse wavelet transform
                     reconstructed_images = self.wavelet_cnn.inverse_transform(recovered_coeffs)
