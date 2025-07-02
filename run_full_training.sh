@@ -12,9 +12,9 @@ if ! command -v nvidia-smi &> /dev/null; then
     exit 1
 fi
 
-# Activate environment 
+# Activate environment - use conda environment name from server
 echo "🔄 Activating environment..."
-source wavenet-prod/bin/activate
+source activate wavelet
 
 # Create directories
 mkdir -p checkpoints
@@ -31,8 +31,7 @@ python training/stage1_train_wavelet.py \
     --learning_rate 2e-4 \
     --dataset coco \
     --data_dir datasets/COCO \
-    --checkpoint_dir checkpoints \
-    --log_dir runs/stage1
+    --resume checkpoints/stage1_wavelet_coco_best.pth
 
 if [ $? -ne 0 ]; then
     echo "❌ Stage 1 training failed"
@@ -57,10 +56,9 @@ for lambda in "${LAMBDA_VALUES[@]}"; do
         --learning_rate 2e-4 \
         --dataset coco \
         --data_dir datasets/COCO \
-        --checkpoint_dir checkpoints \
-        --log_dir runs/stage2_lambda${lambda} \
         --lambda_rd ${lambda} \
-        --wavelet_checkpoint checkpoints/stage1_wavelet_coco_best.pth
+        --wavelet_checkpoint checkpoints/stage1_wavelet_coco_best.pth \
+        --resume checkpoints/stage2_compressor_coco_lambda${lambda}_best.pth
     
     if [ $? -ne 0 ]; then
         echo "❌ Stage 2 training failed for λ = $lambda"
@@ -81,10 +79,9 @@ python training/stage3_train_ai.py \
     --learning_rate 2e-4 \
     --dataset coco \
     --data_dir datasets/COCO \
-    --checkpoint_dir checkpoints \
-    --log_dir runs/stage3 \
     --wavelet_checkpoint checkpoints/stage1_wavelet_coco_best.pth \
-    --compressor_checkpoint checkpoints/stage2_compressor_coco_lambda256_best.pth
+    --compressor_checkpoint checkpoints/stage2_compressor_coco_lambda256_best.pth \
+    --resume checkpoints/stage3_ai_heads_coco_best.pth
 
 if [ $? -ne 0 ]; then
     echo "❌ Stage 3 training failed"
