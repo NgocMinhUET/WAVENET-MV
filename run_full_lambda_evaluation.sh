@@ -5,10 +5,6 @@
 echo "🚀 RUNNING FULL LAMBDA EVALUATION FOR WAVENET-MV"
 echo "=============================================="
 
-# Activate environment
-echo "🔄 Activating environment..."
-source wavenet-prod/bin/activate
-
 # Check CUDA
 if ! command -v nvidia-smi &> /dev/null; then
     echo "❌ This script requires CUDA GPU"
@@ -57,10 +53,11 @@ for lambda in "${LAMBDA_VALUES[@]}"; do
         --dataset coco \
         --data_dir datasets/COCO \
         --split val \
-        --lambda_value $lambda \
+        --lambdas $lambda \
         --batch_size 4 \
         --max_samples 500 \
-        --output_csv "$OUTPUT_CSV"
+        --output_csv "$OUTPUT_CSV" \
+        --skip_entropy_update
     
     if [ $? -eq 0 ]; then
         echo "✅ λ=$lambda evaluation completed"
