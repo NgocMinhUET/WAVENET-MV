@@ -28,7 +28,18 @@ from datasets.dataset_loaders import COCODatasetLoader, DAVISDatasetLoader
 
 
 def calculate_psnr(img1, img2, max_val=1.0):
-    """Calculate PSNR between two images"""
+    """Calculate PSNR giữa hai ảnh.
+    Nếu max_val không được truyền (mặc định 1.0) nhưng giá trị tuyệt đối của ảnh lớn hơn 1
+    (ví dụ ảnh đã Normalize theo ImageNet mean/std), ta sẽ ước lượng peak signal
+    bằng đoạn [min, max] của ảnh gốc để tránh PSNR âm không cần thiết."""
+    if max_val == 1.0:
+        # Ước lượng dải động thực tế
+        data_max = torch.max(img1)
+        data_min = torch.min(img1)
+        max_val_est = max(data_max.abs(), data_min.abs())
+        # Trường hợp ảnh đã normalise quanh 0 với std~0.23 → max_val_est ~2.5
+        # Đảm bảo max_val_est >= 1.0 để công thức hợp lệ
+        max_val = torch.clamp(max_val_est, min=1.0).item()
     mse = torch.mean((img1 - img2) ** 2)
     if mse == 0:
         return float('inf')
@@ -36,7 +47,12 @@ def calculate_psnr(img1, img2, max_val=1.0):
 
 
 def calculate_ms_ssim(img1, img2, data_range=1.0):
-    """Calculate MS-SSIM between two images"""
+    """Calculate MS-SSIM between two images với dải động linh hoạt."""
+    if data_range == 1.0:
+        data_max = torch.max(img1) if torch.is_tensor(img1) else np.max(img1)
+        data_min = torch.min(img1) if torch.is_tensor(img1) else np.min(img1)
+        data_range = max(abs(float(data_max)), abs(float(data_min)), 1.0)
+    
     # Convert to numpy và ensure correct shape
     if torch.is_tensor(img1):
         img1 = img1.cpu().numpy()
@@ -302,9 +318,17 @@ class CodecEvaluator:
                     x_hat, likelihoods, y_quantized = self.compressor(mixed_features)
                     
                     # 4. Inverse AdaMixNet (approximate)
-                    # For simplicity, assume inverse ≈ linear projection
+                    # Approximate inverse: replicate each of 128 channels thành 2 channels để khớp 256 wavelet coeffs
                     if not hasattr(self, 'inverse_adamix'):
-                        self.inverse_adamix = torch.nn.Conv2d(128, 256, 1).to(self.device)
+                        self.inverse_adamix = torch.nn.Conv2d(128, 256, 1, bias=False).to(self.device)
+                        with torch.no_grad():
+                            # Initialize weights để copy: out_c = 2*in_c + offset
+                            weight = torch.zeros(256, 128, 1, 1)
+                            for out_c in range(256):
+                                in_c = out_c // 2  # Map mỗi kênh input tới 2 kênh output
+                                weight[out_c, in_c, 0, 0] = 1.0
+                            self.inverse_adamix.weight.copy_(weight)
+                            self.inverse_adamix.requires_grad_(False)
                     recovered_coeffs = self.inverse_adamix(x_hat)
                     
                     # 5. Inverse wavelet transform
