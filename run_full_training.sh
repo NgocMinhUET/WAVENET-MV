@@ -15,26 +15,26 @@ fi
 
 
 # Create directories
-mkdir -p checkpoints
-mkdir -p runs
-mkdir -p results
+# mkdir -p checkpoints
+# mkdir -p runs
+# mkdir -p results
 
 # Stage 1: Train WaveletTransformCNN
 echo "🔄 STAGE 1: TRAINING WAVELETTRANSFORMCNN"
 echo "----------------------------------------"
 
-python training/stage1_train_wavelet.py \
-    --epochs 30 \
-    --batch_size 8 \
-    --learning_rate 2e-4 \
-    --dataset coco \
-    --data_dir datasets/COCO \
-    --resume checkpoints/stage1_wavelet_coco_best.pth
+# python training/stage1_train_wavelet.py \
+#     --epochs 30 \
+#     --batch_size 8 \
+#     --learning_rate 2e-4 \
+#     --dataset coco \
+#     --data_dir datasets/COCO \
+#     --resume checkpoints/stage1_wavelet_coco_best.pth
 
-if [ $? -ne 0 ]; then
-    echo "❌ Stage 1 training failed"
-    exit 1
-fi
+# if [ $? -ne 0 ]; then
+#     echo "❌ Stage 1 training failed"
+#     exit 1
+# fi
 
 echo "✅ Stage 1 completed successfully"
 
@@ -55,7 +55,7 @@ for lambda in "${LAMBDA_VALUES[@]}"; do
         --dataset coco \
         --data_dir datasets/COCO \
         --lambda_rd ${lambda} \
-        --wavelet_checkpoint checkpoints/stage1_wavelet_coco_best.pth \
+        --stage1_checkpoint checkpoints/stage1_wavelet_coco_best.pth \
         --resume checkpoints/stage2_compressor_coco_lambda${lambda}_best.pth
     
     if [ $? -ne 0 ]; then
@@ -77,8 +77,11 @@ python training/stage3_train_ai.py \
     --learning_rate 2e-4 \
     --dataset coco \
     --data_dir datasets/COCO \
-    --wavelet_checkpoint checkpoints/stage1_wavelet_coco_best.pth \
-    --compressor_checkpoint checkpoints/stage2_compressor_coco_lambda256_best.pth \
+    --stage1_checkpoint checkpoints/stage1_wavelet_coco_best.pth \
+    --stage2_checkpoint checkpoints/stage2_compressor_coco_lambda256_best.pth \
+    --lambda_rd 256 \
+    --enable_detection \
+    --enable_segmentation \
     --resume checkpoints/stage3_ai_heads_coco_best.pth
 
 if [ $? -ne 0 ]; then
