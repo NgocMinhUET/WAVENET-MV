@@ -12,9 +12,7 @@ if ! command -v nvidia-smi &> /dev/null; then
     exit 1
 fi
 
-# Activate environment - use conda environment name from server
-echo "🔄 Activating environment..."
-source activate wavelet
+
 
 # Create directories
 mkdir -p checkpoints
