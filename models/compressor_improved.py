@@ -203,6 +203,19 @@ class ImprovedCompressorVNVC(nn.Module):
             from compressor_vnvc import EntropyBottleneck
         self.entropy_bottleneck = EntropyBottleneck(latent_channels, init_scale=0.2)
         
+    def to(self, device):
+        """Move all parameters to device"""
+        super().to(device)
+        if hasattr(self, 'analysis_transform'):
+            self.analysis_transform.to(device)
+        if hasattr(self, 'synthesis_transform'):
+            self.synthesis_transform.to(device)
+        if hasattr(self, 'quantizer'):
+            self.quantizer.to(device)
+        if hasattr(self, 'entropy_bottleneck'):
+            self.entropy_bottleneck.to(device)
+        return self
+        
     def forward(self, x):
         """
         Forward pass với improved components
@@ -252,6 +265,78 @@ class ImprovedCompressorVNVC(nn.Module):
         rd_loss = self.lambda_rd * mse + bpp
         
         return rd_loss, mse, bpp
+
+
+class ImprovedMultiLambdaCompressorVNVC(nn.Module):
+    """
+    Multi-lambda version of improved compressor
+    Maintains compatibility with existing training scripts
+    """
+    
+    def __init__(self, input_channels=128, latent_channels=192):
+        super().__init__()
+        
+        self.input_channels = input_channels
+        self.latent_channels = latent_channels
+        
+        # Create compressor instances for different lambdas
+        self.compressors = nn.ModuleDict({
+            '64': ImprovedCompressorVNVC(input_channels, latent_channels, 64),
+            '128': ImprovedCompressorVNVC(input_channels, latent_channels, 128),
+            '256': ImprovedCompressorVNVC(input_channels, latent_channels, 256),
+            '512': ImprovedCompressorVNVC(input_channels, latent_channels, 512),
+            '1024': ImprovedCompressorVNVC(input_channels, latent_channels, 1024),
+            '2048': ImprovedCompressorVNVC(input_channels, latent_channels, 2048),
+            '4096': ImprovedCompressorVNVC(input_channels, latent_channels, 4096)
+        })
+        
+        self.current_lambda = 128
+        
+    def to(self, device):
+        """Move all parameters to device"""
+        super().to(device)
+        if hasattr(self, 'compressors'):
+            for lambda_key, compressor in self.compressors.items():
+                if compressor is not None:
+                    compressor.to(device)
+        return self
+        
+    def set_lambda(self, lambda_value):
+        """Set current lambda value"""
+        self.current_lambda = lambda_value
+        
+    def forward(self, x):
+        """Forward pass using current lambda"""
+        compressor = self.compressors[str(self.current_lambda)]
+        return compressor(x)
+        
+    def compress(self, x, lambda_value=None):
+        """Compress using specified lambda"""
+        if lambda_value is None:
+            lambda_value = self.current_lambda
+        compressor = self.compressors[str(lambda_value)]
+        return compressor.compress(x)
+        
+    def decompress(self, bitstream, lambda_value=None):
+        """Decompress using specified lambda"""
+        if lambda_value is None:
+            lambda_value = self.current_lambda
+        compressor = self.compressors[str(lambda_value)]
+        return compressor.decompress(bitstream)
+        
+    def compute_rate_distortion_loss(self, x, x_hat, likelihoods, original_shape):
+        """Compute RD loss using current lambda"""
+        compressor = self.compressors[str(self.current_lambda)]
+        return compressor.compute_rate_distortion_loss(x, x_hat, likelihoods, original_shape)
+        
+    def update(self):
+        """Update all entropy models"""
+        for lambda_key, compressor in self.compressors.items():
+            try:
+                if hasattr(compressor, 'entropy_bottleneck') and hasattr(compressor.entropy_bottleneck, 'gaussian_conditional'):
+                    compressor.entropy_bottleneck.gaussian_conditional.update()
+            except Exception as e:
+                print(f"Warning: Failed to update entropy model for lambda={lambda_key}: {e}")
 
 
 def test_improved_compressor():
