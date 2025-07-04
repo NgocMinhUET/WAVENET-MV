@@ -62,6 +62,47 @@ def fix_unicode_issues(file_path):
                 content = content.replace(special_char, replacement)
                 replacement_count += count
     
+    # Sửa lỗi f-string có chứa ký tự đặc biệt
+    # Tìm các f-string có dạng f"..." hoặc f'...'
+    f_string_pattern = r'f["\']([^"\']*?)["\']'
+    f_strings = re.findall(f_string_pattern, content)
+    
+    # Kiểm tra và sửa f-string có thể gây lỗi
+    for f_string in f_strings:
+        # Nếu f-string chứa ký tự đặc biệt hoặc có dấu ngoặc nhọn lồng nhau
+        if any(char in f_string for char in replacements.keys()) or re.search(r'\{[^}]*\{', f_string):
+            # Tìm f-string đầy đủ
+            full_f_string = re.search(rf'f["\']({re.escape(f_string)})["\']', content)
+            if full_f_string:
+                # Lấy toàn bộ f-string bao gồm cả f"..." hoặc f'...'
+                original = full_f_string.group(0)
+                
+                # Chuyển đổi sang chuỗi thông thường + phép nối
+                # Ví dụ: f"Hello {name}" -> "Hello " + str(name)
+                parts = re.split(r'\{(.*?)\}', f_string)
+                new_string = ""
+                
+                # Xây dựng chuỗi thay thế
+                for i, part in enumerate(parts):
+                    if i % 2 == 0:  # Phần text thường
+                        if part:
+                            new_string += f'"{part}" + '
+                    else:  # Phần biểu thức trong {}
+                        new_string += f'str({part}) + '
+                
+                # Loại bỏ dấu + cuối cùng
+                if new_string.endswith(' + '):
+                    new_string = new_string[:-3]
+                
+                # Nếu chuỗi rỗng
+                if not new_string:
+                    new_string = '""'
+                
+                # Thay thế f-string gốc
+                content = content.replace(original, new_string)
+                print(f"🔄 Đã chuyển đổi f-string: {original} -> {new_string}")
+                replacement_count += 1
+    
     # Nếu không có thay đổi nào
     if replacement_count == 0:
         print("✅ Không tìm thấy ký tự Unicode đặc biệt cần thay thế")
