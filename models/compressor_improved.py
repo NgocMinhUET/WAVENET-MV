@@ -1,6 +1,6 @@
 """
 Improved CompressorVNVC - Fixed Analysis Transform + Adaptive Quantizer
-Based on bottleneck analysis: Analysis transform collapses range 0.22 → 0.04
+Based on bottleneck analysis: Analysis transform collapses range 0.22 -> 0.04
 """
 
 import torch
@@ -86,7 +86,7 @@ class ImprovedQuantizerVNVC(nn.Module):
 class ImprovedAnalysisTransform(nn.Module):
     """
     Improved Analysis Transform with normalization to prevent range collapse
-    Based on analysis: Current transform collapses 0.22 → 0.04
+    Based on analysis: Current transform collapses 0.22 -> 0.04
     """
     
     def __init__(self, input_channels=128, latent_channels=192):
@@ -100,7 +100,7 @@ class ImprovedAnalysisTransform(nn.Module):
         self.conv2 = conv(latent_channels, latent_channels, kernel_size=5, stride=2)
         self.norm2 = nn.GroupNorm(8, latent_channels)
         
-        # Layer 3: Conv + GroupNorm (reduced from 4→3 layers)
+        # Layer 3: Conv + GroupNorm (reduced from 4->3 layers)
         self.conv3 = conv(latent_channels, latent_channels, kernel_size=3, stride=1)
         self.norm3 = nn.GroupNorm(8, latent_channels)
         
@@ -179,7 +179,7 @@ class ImprovedSynthesisTransform(nn.Module):
 class ImprovedCompressorVNVC(nn.Module):
     """
     Improved Compressor với fixed analysis transform và adaptive quantizer
-    Addresses range collapse issue: 0.22 → 0.04 → all zeros
+    Addresses range collapse issue: 0.22 -> 0.04 -> all zeros
     """
     
     def __init__(self, input_channels=128, latent_channels=192, lambda_rd=256):
