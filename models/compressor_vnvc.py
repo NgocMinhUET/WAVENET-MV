@@ -299,7 +299,7 @@ class MultiLambdaCompressorVNVC(nn.Module):
     def set_lambda(self, lambda_value):
         """Set current lambda value"""
         if str(lambda_value) not in self.compressors:
-            raise ValueError(f"Lambda {lambda_value} not supported. Use one of {list(self.compressors.keys())}")
+            raise ValueError("Lambda " + str(lambda_value) + " not supported. Use one of " + str(list(self.compressors.keys())))
         self.current_lambda = lambda_value
         
     def forward(self, x):
