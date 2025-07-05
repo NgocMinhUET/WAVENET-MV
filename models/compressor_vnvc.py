@@ -274,6 +274,30 @@ class CompressorVNVC(nn.Module):
             print(f"ℹ️ This may be OK if entropy model wasn't fully trained")
         print(f"✅ CompressorVNVC (λ={self.lambda_rd}) entropy models processing complete")
 
+    def to(self, device):
+        """
+        Đảm bảo tất cả các module con đều được chuyển đến cùng một device
+        """
+        super().to(device)
+        
+        # Chuyển analysis_transform
+        if hasattr(self, 'analysis_transform'):
+            self.analysis_transform = self.analysis_transform.to(device)
+        
+        # Chuyển synthesis_transform
+        if hasattr(self, 'synthesis_transform'):
+            self.synthesis_transform = self.synthesis_transform.to(device)
+        
+        # Chuyển quantizer
+        if hasattr(self, 'quantizer'):
+            self.quantizer = self.quantizer.to(device)
+        
+        # Chuyển entropy_bottleneck
+        if hasattr(self, 'entropy_bottleneck'):
+            self.entropy_bottleneck = self.entropy_bottleneck.to(device)
+        
+        return self
+
 
 class MultiLambdaCompressorVNVC(nn.Module):
     """
@@ -352,6 +376,20 @@ class MultiLambdaCompressorVNVC(nn.Module):
             except Exception as e:
                 print(f"⚠️ Warning: Could not update entropy model for λ={lambda_key}: {e}")
         print(f"✅ MultiLambdaCompressorVNVC ready for inference ({updated_count}/{len(self.compressors)} models updated)")
+
+    def to(self, device):
+        """
+        Đảm bảo tất cả các module con đều được chuyển đến cùng một device
+        """
+        super().to(device)
+        
+        # Chuyển từng compressor trong compressors
+        if hasattr(self, 'compressors'):
+            for lambda_key, compressor in self.compressors.items():
+                if compressor is not None:
+                    self.compressors[lambda_key] = compressor.to(device)
+        
+        return self
 
 
 def test_compressor_vnvc():

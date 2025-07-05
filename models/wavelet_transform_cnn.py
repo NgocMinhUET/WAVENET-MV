@@ -163,6 +163,26 @@ class WaveletTransformCNN(nn.Module):
         reconstructed = torch.tanh(rgb_reconstruction(reconstructed_features))
         
         return reconstructed
+    
+    def to(self, device):
+        """
+        Đảm bảo tất cả các module con đều được chuyển đến cùng một device
+        """
+        super().to(device)
+        
+        # Chuyển input_conv
+        if hasattr(self, 'input_conv'):
+            self.input_conv = self.input_conv.to(device)
+        
+        # Chuyển predict_cnn
+        if hasattr(self, 'predict_cnn'):
+            self.predict_cnn = self.predict_cnn.to(device)
+        
+        # Chuyển update_cnn
+        if hasattr(self, 'update_cnn'):
+            self.update_cnn = self.update_cnn.to(device)
+        
+        return self
 
 
 def test_wavelet_transform_cnn():

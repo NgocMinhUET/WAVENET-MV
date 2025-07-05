@@ -157,6 +157,31 @@ class AdaMixNet(nn.Module):
                 self.inverse_proj.weight.copy_(weight)
         
         return self.inverse_proj(mixed_features)
+    
+    def to(self, device):
+        """
+        Đảm bảo tất cả các module con đều được chuyển đến cùng device
+        """
+        super().to(device)
+        
+        # Chuyển parallel_filters
+        if hasattr(self, 'parallel_filters'):
+            for i, filter_block in enumerate(self.parallel_filters):
+                self.parallel_filters[i] = filter_block.to(device)
+        
+        # Chuyển attention_cnn
+        if hasattr(self, 'attention_cnn'):
+            self.attention_cnn = self.attention_cnn.to(device)
+        
+        # Chuyển output_projection
+        if hasattr(self, 'output_projection'):
+            self.output_projection = self.output_projection.to(device)
+        
+        # Chuyển inverse_proj nếu có
+        if hasattr(self, 'inverse_proj'):
+            self.inverse_proj = self.inverse_proj.to(device)
+        
+        return self
 
 
 class EnhancedAdaMixNet(AdaMixNet):

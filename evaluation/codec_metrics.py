@@ -198,6 +198,16 @@ class CodecEvaluator:
         if 'compressor_state_dict' in checkpoint:
             self.compressor.load_state_dict(checkpoint['compressor_state_dict'])
         
+        # Đảm bảo tất cả các mô hình đều ở cùng device
+        self.wavelet_cnn = self.wavelet_cnn.to(self.device)
+        self.adamixnet = self.adamixnet.to(self.device)
+        self.compressor = self.compressor.to(self.device)
+        
+        # Fix device mismatch cho từng module con
+        self._fix_device_mismatch(self.wavelet_cnn)
+        self._fix_device_mismatch(self.adamixnet)
+        self._fix_device_mismatch(self.compressor)
+        
         # Set to evaluation mode
         self.wavelet_cnn.eval()
         self.adamixnet.eval()
@@ -226,7 +236,25 @@ class CodecEvaluator:
                 print("ℹ️ This may be OK if models weren't trained with entropy bottleneck")
         
         print("✓ Models loaded and entropy models initialized successfully")
-        
+    
+    def _fix_device_mismatch(self, model):
+        """
+        Đảm bảo tất cả các tham số và buffers của model đều ở cùng device
+        """
+        # Kiểm tra từng module con
+        for name, module in model.named_modules():
+            # Đảm bảo tất cả parameters đều ở đúng device
+            for param_name, param in module.named_parameters(recurse=False):
+                if param.device != self.device:
+                    print(f"⚠️ Moving parameter {name}.{param_name} from {param.device} to {self.device}")
+                    param.data = param.data.to(self.device)
+            
+            # Đảm bảo tất cả buffers đều ở đúng device
+            for buffer_name, buffer in module.named_buffers(recurse=False):
+                if buffer.device != self.device:
+                    print(f"⚠️ Moving buffer {name}.{buffer_name} from {buffer.device} to {self.device}")
+                    module.register_buffer(buffer_name, buffer.to(self.device))
+    
     def _custom_collate_fn(self, batch):
         """Custom collate function to handle COCO dataset safely"""
         images = []
