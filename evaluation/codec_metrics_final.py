@@ -282,6 +282,12 @@ class CodecEvaluatorFinal:
             ).to(self.device)
             self.compressor.eval()
         
+        # Đảm bảo tất cả models đều ở đúng device TRƯỚC KHI bắt đầu evaluation
+        self.ensure_models_on_device()
+        
+        # Kiểm tra device consistency trước khi bắt đầu
+        self.check_device_consistency()
+        
         # Metrics accumulation
         psnr_values = []
         ms_ssim_values = []
@@ -289,20 +295,35 @@ class CodecEvaluatorFinal:
         
         with torch.no_grad():
             for batch_idx, batch in enumerate(tqdm(self.dataloader, desc=f'λ={lambda_value}')):
-                # Get images
+                # Get images và đảm bảo ở đúng device
                 if isinstance(batch, dict):
-                    images = batch['image'].to(self.device)
+                    images = batch['image']
                 else:
-                    images = batch[0].to(self.device)
+                    images = batch[0]
+                
+                # Đảm bảo images ở đúng device và dtype
+                images = images.to(self.device, dtype=torch.float32, non_blocking=True)
+                
+                # Debug info cho batch đầu tiên
+                if batch_idx == 0:
+                    print(f"🔍 Batch 0 debug:")
+                    print(f"  - Input images: {images.shape}, device={images.device}, dtype={images.dtype}")
+                    print(f"  - Input range: [{images.min():.4f}, {images.max():.4f}]")
                 
                 try:
-                    # Đảm bảo tất cả models đều ở đúng device trước forward pass
-                    self.ensure_models_on_device()
-                    
                     # Forward pass through pipeline
                     wavelet_coeffs = self.wavelet_cnn(images)
                     mixed_features = self.adamixnet(wavelet_coeffs)
                     x_hat, likelihoods, y_quantized = self.compressor(mixed_features)
+                    
+                    # Debug info cho batch đầu tiên
+                    if batch_idx == 0:
+                        print(f"  - Wavelet output: {wavelet_coeffs.shape}, device={wavelet_coeffs.device}")
+                        print(f"  - Mixed features: {mixed_features.shape}, device={mixed_features.device}")
+                        print(f"  - Compressor output: {x_hat.shape}, device={x_hat.device}")
+                        print(f"  - Y quantized: {y_quantized.shape}, device={y_quantized.device}")
+                        print(f"  - Y quantized range: [{y_quantized.min():.4f}, {y_quantized.max():.4f}]")
+                        print(f"  - Y quantized non-zero ratio: {(y_quantized != 0).float().mean():.4f}")
                     
                     # Inverse transforms
                     recovered_coeffs = self.adamixnet.inverse_transform(x_hat)
@@ -359,21 +380,65 @@ class CodecEvaluatorFinal:
                                  ('adamixnet', self.adamixnet), 
                                  ('compressor', self.compressor)]:
             
-            # Kiểm tra xem model có ở đúng device không
-            model_on_device = True
+            # Force move model to device
+            model = model.to(self.device)
+            
+            # Đảm bảo tất cả parameters đều được di chuyển
             for name, param in model.named_parameters():
                 if param.device != self.device:
-                    model_on_device = False
-                    break
+                    param.data = param.data.to(self.device, non_blocking=True)
             
-            if not model_on_device:
-                print(f"⚠️ Moving {model_name} to {self.device}")
-                model.to(self.device)
-                
-                # Đảm bảo tất cả parameters đều được di chuyển
-                for name, param in model.named_parameters():
-                    if param.device != self.device:
-                        param.data = param.data.to(self.device)
+            # Đảm bảo tất cả buffers đều được di chuyển
+            for name, buffer in model.named_buffers():
+                if hasattr(buffer, 'device') and buffer.device != self.device:
+                    try:
+                        # Sử dụng register_buffer để tránh lỗi với buffer names có dấu chấm
+                        if '.' not in name:
+                            model.register_buffer(name, buffer.to(self.device, non_blocking=True))
+                    except Exception as e:
+                        # Nếu không thể register, chỉ cần đảm bảo buffer ở đúng device
+                        pass
+            
+            # Set model to eval mode
+            model.eval()
+    
+    def check_device_consistency(self):
+        """Kiểm tra device consistency của tất cả models và in thông tin debug"""
+        print(f"\n🔍 Checking device consistency...")
+        print(f"Target device: {self.device}")
+        
+        models_info = [
+            ('WaveletTransformCNN', self.wavelet_cnn),
+            ('AdaMixNet', self.adamixnet),
+            ('CompressorVNVC', self.compressor)
+        ]
+        
+        all_consistent = True
+        for name, model in models_info:
+            # Kiểm tra parameters
+            param_devices = set()
+            for param_name, param in model.named_parameters():
+                param_devices.add(str(param.device))
+                if param.device != self.device:
+                    print(f"❌ {name} parameter {param_name}: {param.device} (expected {self.device})")
+                    all_consistent = False
+            
+            # Kiểm tra buffers
+            buffer_devices = set()
+            for buffer_name, buffer in model.named_buffers():
+                if hasattr(buffer, 'device'):
+                    buffer_devices.add(str(buffer.device))
+                    if buffer.device != self.device:
+                        print(f"❌ {name} buffer {buffer_name}: {buffer.device} (expected {self.device})")
+                        all_consistent = False
+            
+            print(f"✅ {name}: params={param_devices}, buffers={buffer_devices}")
+        
+        if all_consistent:
+            print("🎉 All models are on the correct device!")
+        else:
+            print("⚠️ Device inconsistency detected - forcing models to device...")
+            self.ensure_models_on_device()
     
     def evaluate_all_lambdas(self):
         """Evaluate tất cả lambda values"""
