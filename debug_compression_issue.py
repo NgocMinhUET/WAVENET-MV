@@ -15,14 +15,22 @@ def debug_compression_pipeline():
     # Load models
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
-    # Stage 1: Wavelet - sửa constructor
+    # Stage 1: Wavelet - load checkpoint với format đúng
     wavelet = WaveletTransformCNN(input_channels=3, feature_channels=64, wavelet_channels=64)
-    wavelet.load_state_dict(torch.load('checkpoints/stage1_wavelet_coco_best.pth', map_location=device))
+    wavelet_checkpoint = torch.load('checkpoints/stage1_wavelet_coco_best.pth', map_location=device)
+    if 'model_state_dict' in wavelet_checkpoint:
+        wavelet.load_state_dict(wavelet_checkpoint['model_state_dict'])
+    else:
+        wavelet.load_state_dict(wavelet_checkpoint)
     wavelet.eval()
     
-    # Stage 2: Compressor
+    # Stage 2: Compressor - load checkpoint với format đúng
     compressor = CompressorVNVC(in_channels=256, out_channels=128)  # 4*64=256 channels
-    compressor.load_state_dict(torch.load('checkpoints/stage2_compressor_coco_lambda128_best.pth', map_location=device))
+    compressor_checkpoint = torch.load('checkpoints/stage2_compressor_coco_lambda128_best.pth', map_location=device)
+    if 'model_state_dict' in compressor_checkpoint:
+        compressor.load_state_dict(compressor_checkpoint['model_state_dict'])
+    else:
+        compressor.load_state_dict(compressor_checkpoint)
     compressor.eval()
     
     print("✅ Models loaded successfully")
