@@ -230,17 +230,28 @@ class BaselineComparator:
         """Run full comparison"""
         print("🚀 Starting baseline comparison...")
         
-        # Evaluate traditional codecs
-        jpeg_qualities = [10, 30, 50, 70, 90]
-        webp_qualities = [10, 30, 50, 70, 90]
+        # Evaluate traditional codecs based on command line arguments
+        if hasattr(self.args, 'methods') and self.args.methods:
+            methods = self.args.methods
+        else:
+            methods = ['JPEG', 'WebP', 'PNG']
         
-        for quality in jpeg_qualities:
-            self.evaluate_baseline('JPEG', quality)
+        if hasattr(self.args, 'qualities') and self.args.qualities:
+            qualities = self.args.qualities
+        else:
+            qualities = [10, 30, 50, 70, 90]
         
-        for quality in webp_qualities:
-            self.evaluate_baseline('WebP', quality)
+        print(f"Methods: {methods}")
+        print(f"Qualities: {qualities}")
         
-        self.evaluate_baseline('PNG')
+        for method in methods:
+            if method == 'PNG':
+                # PNG is lossless, no quality parameter
+                self.evaluate_baseline('PNG')
+            else:
+                # JPEG and WebP use quality parameter
+                for quality in qualities:
+                    self.evaluate_baseline(method, quality)
         
         # Evaluate WAVENET-MV
         if self.args.wavenet_checkpoint:
@@ -334,6 +345,15 @@ def main():
                        help='Image size')
     parser.add_argument('--max_samples', type=int, default=100,
                        help='Maximum samples for evaluation')
+    
+    # Baseline methods arguments
+    parser.add_argument('--methods', type=str, nargs='+', 
+                       choices=['JPEG', 'WebP', 'PNG'],
+                       default=['JPEG', 'WebP', 'PNG'],
+                       help='Methods to compare')
+    parser.add_argument('--qualities', type=int, nargs='+', 
+                       default=[10, 30, 50, 70, 90],
+                       help='Quality values for JPEG/WebP')
     
     # WAVENET-MV arguments
     parser.add_argument('--wavenet_checkpoint', type=str,
