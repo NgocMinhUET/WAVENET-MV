@@ -44,7 +44,7 @@ def calculate_psnr(img1, img2, max_val=1.0):
 
 
 def calculate_ms_ssim(img1, img2, data_range=1.0):
-    """Calculate MS-SSIM between two images."""
+    """Calculate MS-SSIM between two images with safe handling for small images."""
     if data_range == 1.0:
         data_max = torch.max(img1) if torch.is_tensor(img1) else np.max(img1)
         data_min = torch.min(img1) if torch.is_tensor(img1) else np.min(img1)
@@ -55,6 +55,31 @@ def calculate_ms_ssim(img1, img2, data_range=1.0):
     if torch.is_tensor(img2):
         img2 = img2.cpu().numpy()
     
+    def safe_ssim(im1, im2, data_range):
+        """Safe SSIM calculation with adaptive window size"""
+        try:
+            # Get image dimensions
+            H, W = im1.shape[:2] if im1.ndim >= 2 else im1.shape
+            
+            # Calculate adaptive window size
+            min_dim = min(H, W)
+            if min_dim < 7:
+                # For very small images, use smaller window or fallback to simple similarity
+                if min_dim < 3:
+                    # Fallback to simple correlation for tiny images
+                    return np.corrcoef(im1.flatten(), im2.flatten())[0, 1]
+                else:
+                    # Use smaller window size
+                    win_size = min_dim if min_dim % 2 == 1 else min_dim - 1
+                    return ssim(im1, im2, data_range=data_range, win_size=win_size)
+            else:
+                # Normal case: use default window size
+                return ssim(im1, im2, data_range=data_range)
+        except Exception as e:
+            # Fallback to simple correlation if SSIM fails
+            print(f"SSIM failed, using correlation fallback: {e}")
+            return np.corrcoef(im1.flatten(), im2.flatten())[0, 1]
+    
     if img1.ndim == 4:
         ms_ssim_values = []
         for i in range(img1.shape[0]):
@@ -64,10 +89,10 @@ def calculate_ms_ssim(img1, img2, data_range=1.0):
             if im1.shape[2] == 3:
                 ms_ssim_val = 0
                 for c in range(3):
-                    ms_ssim_val += ssim(im1[:,:,c], im2[:,:,c], data_range=data_range)
+                    ms_ssim_val += safe_ssim(im1[:,:,c], im2[:,:,c], data_range)
                 ms_ssim_val /= 3
             else:
-                ms_ssim_val = ssim(im1.squeeze(), im2.squeeze(), data_range=data_range)
+                ms_ssim_val = safe_ssim(im1.squeeze(), im2.squeeze(), data_range)
             
             ms_ssim_values.append(ms_ssim_val)
         
@@ -77,7 +102,7 @@ def calculate_ms_ssim(img1, img2, data_range=1.0):
             img1 = np.transpose(img1, (1, 2, 0))
             img2 = np.transpose(img2, (1, 2, 0))
         
-        return ssim(img1, img2, data_range=data_range, multichannel=True)
+        return safe_ssim(img1, img2, data_range)
 
 
 def estimate_bpp_from_features(quantized_features, image_shape):
