@@ -25,7 +25,7 @@ def debug_compression_pipeline():
     wavelet.eval()
     
     # Stage 2: Compressor - load checkpoint với format đúng
-    compressor = CompressorVNVC(in_channels=256, out_channels=128)  # 4*64=256 channels
+    compressor = CompressorVNVC(input_channels=256, latent_channels=192, lambda_rd=128)  # 4*64=256 channels
     compressor_checkpoint = torch.load('checkpoints/stage2_compressor_coco_lambda128_best.pth', map_location=device)
     if 'model_state_dict' in compressor_checkpoint:
         compressor.load_state_dict(compressor_checkpoint['model_state_dict'])
@@ -111,7 +111,8 @@ def debug_compression_pipeline():
         
         # Check entropy model
         try:
-            likelihoods = compressor.entropy_model(y_quantized)
+            # Use entropy_bottleneck instead of entropy_model
+            y_hat, likelihoods = compressor.entropy_bottleneck(y_quantized)
             print(f"\n🎲 ENTROPY MODEL:")
             print(f"Likelihoods shape: {likelihoods.shape}")
             print(f"Likelihoods range: [{likelihoods.min():.6f}, {likelihoods.max():.6f}]")
