@@ -124,9 +124,12 @@ class CodecEvaluatorFinal:
             C_mix=128
         ).to(self.device)
         
-        self.compressor = MultiLambdaCompressorVNVC(
+        # Sử dụng CompressorVNVC đơn giản thay vì MultiLambdaCompressorVNVC
+        from models.compressor_vnvc import CompressorVNVC
+        self.compressor = CompressorVNVC(
             input_channels=128,
-            latent_channels=192
+            latent_channels=192,
+            lambda_rd=128
         ).to(self.device)
         
         # Load WaveletTransformCNN từ Stage 1
@@ -139,6 +142,9 @@ class CodecEvaluatorFinal:
             if 'wavelet_state_dict' in stage1_checkpoint:
                 self.wavelet_cnn.load_state_dict(stage1_checkpoint['wavelet_state_dict'])
                 print("✓ Loaded wavelet_state_dict")
+            elif 'model_state_dict' in stage1_checkpoint:
+                self.wavelet_cnn.load_state_dict(stage1_checkpoint['model_state_dict'])
+                print("✓ Loaded model_state_dict for wavelet")
             elif 'state_dict' in stage1_checkpoint:
                 self.wavelet_cnn.load_state_dict(stage1_checkpoint['state_dict'])
                 print("✓ Loaded state_dict for wavelet")
@@ -230,8 +236,18 @@ class CodecEvaluatorFinal:
         """Evaluate metrics for specific lambda value"""
         print(f"\nEvaluating λ = {lambda_value}")
         
-        # Set compressor lambda
-        self.compressor.set_lambda(lambda_value)
+        # Set compressor lambda (nếu có method set_lambda)
+        if hasattr(self.compressor, 'set_lambda'):
+            self.compressor.set_lambda(lambda_value)
+        else:
+            # Nếu không có, tạo compressor mới với lambda mới
+            from models.compressor_vnvc import CompressorVNVC
+            self.compressor = CompressorVNVC(
+                input_channels=128,
+                latent_channels=192,
+                lambda_rd=lambda_value
+            ).to(self.device)
+            self.compressor.eval()
         
         # Metrics accumulation
         psnr_values = []
