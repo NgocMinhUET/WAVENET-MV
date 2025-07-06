@@ -204,9 +204,9 @@ class CodecEvaluator:
         self.compressor = self.compressor.to(self.device)
         
         # Fix device mismatch cho từng module con
-        self._fix_device_mismatch(self.wavelet_cnn)
-        self._fix_device_mismatch(self.adamixnet)
-        self._fix_device_mismatch(self.compressor)
+        self._fix_device_mismatch_complete(self.wavelet_cnn)
+        self._fix_device_mismatch_complete(self.adamixnet)
+        self._fix_device_mismatch_complete(self.compressor)
         
         # Set to evaluation mode
         self.wavelet_cnn.eval()
@@ -254,6 +254,55 @@ class CodecEvaluator:
                 if buffer.device != self.device:
                     print(f"⚠️ Moving buffer {name}.{buffer_name} from {buffer.device} to {self.device}")
                     module.register_buffer(buffer_name, buffer.to(self.device))
+    
+    def _fix_device_mismatch_complete(self, model):
+        """
+        Phiên bản cải tiến của _fix_device_mismatch để đảm bảo mọi thành phần đều ở cùng device.
+        Phương pháp này xử lý triệt để hơn để ngăn lỗi "Input type (torch.cuda.FloatTensor) and weight type (torch.FloatTensor)"
+        """
+        print(f"🔧 Đang đảm bảo {model.__class__.__name__} hoàn toàn ở {self.device}")
+
+        # Đảm bảo model hoàn toàn ở trên device đích
+        model.to(self.device)
+
+        # Kiểm tra tất cả modules (kể cả modules con)
+        for name, module in model.named_modules():
+            # Di chuyển module con đến device
+            if hasattr(module, 'to'):
+                module.to(self.device)
+            
+            # Di chuyển từng parameter
+            for param_name, param in module.named_parameters(recurse=False):
+                if param.device != self.device:
+                    print(f"  - Di chuyển param {name}.{param_name} từ {param.device} sang {self.device}")
+                    # Đảm bảo cả param và param.data đều được di chuyển
+                    param.data = param.data.to(self.device)
+                    setattr(module, param_name, param.to(self.device))
+            
+            # Di chuyển từng buffer
+            for buffer_name, buffer in module.named_buffers(recurse=False):
+                if hasattr(buffer, 'device') and buffer.device != self.device:
+                    print(f"  - Di chuyển buffer {name}.{buffer_name} từ {buffer.device} sang {self.device}")
+                    # Đảm bảo buffer được đăng ký lại với device mới
+                    module.register_buffer(buffer_name, buffer.to(self.device))
+
+        # Kiểm tra lại sau khi di chuyển
+        all_on_device = True
+        
+        for name, param in model.named_parameters():
+            if param.device != self.device:
+                print(f"❌ CẢNH BÁO: Param {name} vẫn còn ở {param.device}")
+                all_on_device = False
+        
+        for name, buffer in model.named_buffers():
+            if hasattr(buffer, 'device') and buffer.device != self.device:
+                print(f"❌ CẢNH BÁO: Buffer {name} vẫn còn ở {buffer.device}")
+                all_on_device = False
+        
+        if all_on_device:
+            print(f"✓ Tất cả thành phần của {model.__class__.__name__} đã ở {self.device}")
+        else:
+            print(f"⚠️ Vẫn còn một số thành phần không ở {self.device}!")
     
     def _custom_collate_fn(self, batch):
         """Custom collate function to handle COCO dataset safely"""

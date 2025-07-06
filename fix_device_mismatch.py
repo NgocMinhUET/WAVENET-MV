@@ -1,124 +1,171 @@
 """
-Sửa lỗi device mismatch trong compressor cải tiến
-Lỗi: Input type (torch.cuda.FloatTensor) and weight type (torch.FloatTensor) should be the same
+WAVENET-MV Device Mismatch Fixer
+Sửa lỗi "Input type (torch.cuda.FloatTensor) and weight type (torch.FloatTensor) should be the same"
+
+Cách dùng: python fix_device_mismatch.py --checkpoint path/to/checkpoint.pt --output path/to/fixed_checkpoint.pt
 """
 
+import argparse
 import torch
 import os
+import sys
+from pathlib import Path
 
-def patch_improved_compressor():
+# Thêm directory gốc vào path
+sys.path.append(str(Path(__file__).parent))
+
+# Import models
+from models.wavelet_transform_cnn import WaveletTransformCNN
+from models.adamixnet import AdaMixNet  
+from models.compressor_vnvc import MultiLambdaCompressorVNVC
+
+
+def fix_device_mismatch(model, target_device):
     """
-    Sửa lỗi device mismatch trong compressor_improved.py
+    Đảm bảo tất cả tham số và buffers đều nằm trên cùng một device
+    
+    Args:
+        model: PyTorch model
+        target_device: device cần chuyển đến (thường là 'cuda')
     """
-    print("🔧 ĐANG SỬA LỖI DEVICE MISMATCH")
-    print("="*50)
+    print(f"Đang di chuyển {model.__class__.__name__} đến {target_device}...")
     
-    # Đọc file
-    with open('models/compressor_improved.py', 'r', encoding='utf-8') as f:
-        content = f.read()
+    # Đảm bảo model ở đúng device
+    model = model.to(target_device)
     
-    # Thêm hàm to() để đảm bảo tất cả modules cùng device
-    if "def to(self, device):" not in content:
-        # Thêm phương thức to() cho ImprovedCompressorVNVC
-        improved_compressor_to_method = '''
-    def to(self, device):
-        """Chuyển toàn bộ model sang device chỉ định"""
-        super().to(device)
-        self.analysis_transform.to(device)
-        self.synthesis_transform.to(device)
-        if hasattr(self, 'entropy_bottleneck'):
-            self.entropy_bottleneck.to(device)
-        return self
-'''
+    # Kiểm tra từng module con
+    for name, module in model.named_modules():
+        # Kiểm tra parameters
+        for param_name, param in module.named_parameters(recurse=False):
+            if param.device != target_device:
+                print(f"  - Di chuyển parameter {name}.{param_name} từ {param.device} đến {target_device}")
+                param.data = param.data.to(target_device)
         
-        # Tìm vị trí để thêm phương thức
-        insert_pos = content.find("def compute_rate_distortion_loss(self, x, x_hat, likelihoods, original_shape):")
-        if insert_pos > 0:
-            # Tìm dòng trước để thêm vào
-            last_def_end = content.rfind("}", 0, insert_pos)
-            if last_def_end > 0:
-                # Thêm phương thức mới
-                new_content = content[:last_def_end+1] + improved_compressor_to_method + content[last_def_end+1:]
-                
-                # Lưu file
-                with open('models/compressor_improved.py', 'w', encoding='utf-8') as f:
-                    f.write(new_content)
-                    
-                print("✅ Đã thêm phương thức to() cho ImprovedCompressorVNVC")
-            else:
-                print("❌ Không tìm thấy vị trí phù hợp để thêm to()")
-        else:
-            print("❌ Không tìm thấy compute_rate_distortion_loss")
-    else:
-        print("✅ Phương thức to() đã tồn tại")
+        # Kiểm tra buffers
+        for buffer_name, buffer in module.named_buffers(recurse=False):
+            if buffer.device != target_device:
+                print(f"  - Di chuyển buffer {name}.{buffer_name} từ {buffer.device} đến {target_device}")
+                module.register_buffer(buffer_name, buffer.to(target_device))
     
-    # Thêm phương thức to() cho ImprovedMultiLambdaCompressorVNVC
-    if "def to(self, device):" not in content or "def to(self, device):" not in content.split("ImprovedMultiLambdaCompressorVNVC")[1]:
-        multilambda_to_method = '''
-    def to(self, device):
-        """Chuyển toàn bộ model sang device chỉ định"""
-        super().to(device)
-        for lambda_key, compressor in self.compressors.items():
-            compressor.to(device)
-        return self
-'''
+    return model
+
+
+def check_model_devices(model, name="Model"):
+    """
+    Kiểm tra tất cả parameters và buffers trong model có cùng device không
+    
+    Args:
+        model: PyTorch model
+        name: Tên của model để hiển thị
         
-        # Tìm vị trí để thêm phương thức
-        multilambda_pos = content.find("class ImprovedMultiLambdaCompressorVNVC")
-        if multilambda_pos > 0:
-            insert_pos = content.find("def update(self):", multilambda_pos)
-            if insert_pos > 0:
-                # Tìm dòng trước để thêm vào
-                last_def_end = content.rfind("}", 0, insert_pos)
-                if last_def_end > 0:
-                    # Chèn phương thức to() trước update()
-                    new_content = content[:last_def_end+1] + multilambda_to_method + content[last_def_end+1:]
-                    
-                    # Lưu file
-                    with open('models/compressor_improved.py', 'w', encoding='utf-8') as f:
-                        f.write(new_content)
-                        
-                    print("✅ Đã thêm phương thức to() cho ImprovedMultiLambdaCompressorVNVC")
-                else:
-                    print("❌ Không tìm thấy vị trí phù hợp để thêm to()")
-            else:
-                print("❌ Không tìm thấy update()")
-        else:
-            print("❌ Không tìm thấy ImprovedMultiLambdaCompressorVNVC")
-    else:
-        print("✅ Phương thức to() cho ImprovedMultiLambdaCompressorVNVC đã tồn tại")
+    Returns:
+        bool: True nếu tất cả cùng device, False nếu có sự khác biệt
+    """
+    devices = set()
     
-    # Sửa file đánh giá để đảm bảo to(device) được gọi
-    eval_file = 'evaluation/codec_metrics.py'
-    if os.path.exists(eval_file):
-        with open(eval_file, 'r', encoding='utf-8') as f:
-            eval_content = f.read()
-        
-        # Kiểm tra nếu cần thêm .to(device) sau khi khởi tạo model
-        if ".to(self.device)" not in eval_content or ".to(self.device)" not in eval_content.split("self.compressor = MultiLambdaCompressorVNVC")[1]:
-            # Tìm vị trí để thêm .to(self.device)
-            init_pos = eval_content.find("self.compressor = MultiLambdaCompressorVNVC")
-            if init_pos > 0:
-                # Tìm dấu ) để thêm .to(self.device)
-                end_pos = eval_content.find(")", init_pos)
-                if end_pos > 0:
-                    # Thêm .to(self.device)
-                    new_eval_content = eval_content[:end_pos+1] + ".to(self.device)" + eval_content[end_pos+1:]
-                    
-                    # Lưu file
-                    with open(eval_file, 'w', encoding='utf-8') as f:
-                        f.write(new_eval_content)
-                        
-                    print(f"✅ Đã thêm .to(self.device) vào {eval_file}")
-                else:
-                    print(f"❌ Không tìm thấy dấu ) trong {eval_file}")
-            else:
-                print(f"❌ Không tìm thấy MultiLambdaCompressorVNVC trong {eval_file}")
-        else:
-            print(f"✅ .to(self.device) đã tồn tại trong {eval_file}")
+    # Kiểm tra parameters
+    for name, param in model.named_parameters():
+        devices.add(str(param.device))
     
-    print("\n✅ ĐÃ SỬA XONG LỖI DEVICE MISMATCH")
-    print("Hãy chạy lại đánh giá!")
+    # Kiểm tra buffers
+    for name, buffer in model.named_buffers():
+        devices.add(str(buffer.device))
+    
+    print(f"{name} đang sử dụng các devices: {devices}")
+    
+    return len(devices) == 1
+
+
+def fix_checkpoint(checkpoint_path, output_path, device_str="cuda"):
+    """
+    Sửa checkpoint để đảm bảo tất cả parameters và buffers đều ở cùng device
+    
+    Args:
+        checkpoint_path: Đường dẫn đến checkpoint gốc
+        output_path: Đường dẫn lưu checkpoint sau khi sửa
+        device_str: Tên device muốn chuyển đến ("cuda" hoặc "cpu")
+    """
+    print(f"Đang sửa checkpoint: {checkpoint_path}")
+    print(f"Device đích: {device_str}")
+    
+    # Xác định device
+    device = torch.device(device_str if torch.cuda.is_available() and device_str == "cuda" else "cpu")
+    print(f"Sử dụng device: {device}")
+    
+    # Load checkpoint
+    checkpoint = torch.load(checkpoint_path, map_location=device)
+    print("Đã load checkpoint")
+    
+    # Khởi tạo models
+    wavelet_cnn = WaveletTransformCNN(
+        input_channels=3,
+        feature_channels=64,
+        wavelet_channels=64
+    )
+    
+    adamixnet = AdaMixNet(
+        input_channels=256,  # 4 * 64
+        C_prime=64,
+        C_mix=128
+    )
+    
+    compressor = MultiLambdaCompressorVNVC(
+        input_channels=128,
+        latent_channels=192
+    )
+    
+    # Load state dicts
+    print("Đang load state dictionaries...")
+    if 'wavelet_state_dict' in checkpoint:
+        wavelet_cnn.load_state_dict(checkpoint['wavelet_state_dict'])
+        print("✓ Đã load wavelet_state_dict")
+    
+    if 'adamixnet_state_dict' in checkpoint:
+        adamixnet.load_state_dict(checkpoint['adamixnet_state_dict'])
+        print("✓ Đã load adamixnet_state_dict")
+    
+    if 'compressor_state_dict' in checkpoint:
+        compressor.load_state_dict(checkpoint['compressor_state_dict'])
+        print("✓ Đã load compressor_state_dict")
+    
+    # Sửa device mismatch
+    print("\nĐang sửa device mismatch...")
+    wavelet_cnn = fix_device_mismatch(wavelet_cnn, device)
+    adamixnet = fix_device_mismatch(adamixnet, device)
+    compressor = fix_device_mismatch(compressor, device)
+    
+    # Kiểm tra kết quả
+    print("\nKiểm tra sau khi sửa:")
+    check_model_devices(wavelet_cnn, "WaveletTransformCNN")
+    check_model_devices(adamixnet, "AdaMixNet")
+    check_model_devices(compressor, "CompressorVNVC")
+    
+    # Cập nhật state dicts trong checkpoint
+    checkpoint['wavelet_state_dict'] = wavelet_cnn.state_dict()
+    checkpoint['adamixnet_state_dict'] = adamixnet.state_dict()
+    checkpoint['compressor_state_dict'] = compressor.state_dict()
+    
+    # Lưu checkpoint đã sửa
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    torch.save(checkpoint, output_path)
+    print(f"\n✓ Đã lưu checkpoint đã sửa tại: {output_path}")
+    print(f"Dùng checkpoint này để chạy evaluation sẽ không còn lỗi device mismatch")
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Fix device mismatch issues in WAVENET-MV checkpoints")
+    
+    parser.add_argument("--checkpoint", type=str, required=True,
+                       help="Đường dẫn đến checkpoint gốc")
+    parser.add_argument("--output", type=str, required=True,
+                       help="Đường dẫn lưu checkpoint đã sửa")
+    parser.add_argument("--device", type=str, default="cuda", choices=["cuda", "cpu"],
+                       help="Device muốn sử dụng (cuda hoặc cpu)")
+    
+    args = parser.parse_args()
+    
+    fix_checkpoint(args.checkpoint, args.output, args.device)
+
 
 if __name__ == "__main__":
-    patch_improved_compressor() 
+    main() 
