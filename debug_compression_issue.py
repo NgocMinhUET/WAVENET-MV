@@ -27,7 +27,9 @@ def debug_compression_pipeline():
     # Stage 2: Compressor - load checkpoint với format đúng
     compressor = CompressorVNVC(input_channels=256, latent_channels=192, lambda_rd=128)  # 4*64=256 channels
     compressor_checkpoint = torch.load('checkpoints/stage2_compressor_coco_lambda128_best.pth', map_location=device)
-    if 'model_state_dict' in compressor_checkpoint:
+    if 'compressor_state_dict' in compressor_checkpoint:
+        compressor.load_state_dict(compressor_checkpoint['compressor_state_dict'])
+    elif 'model_state_dict' in compressor_checkpoint:
         compressor.load_state_dict(compressor_checkpoint['model_state_dict'])
     else:
         compressor.load_state_dict(compressor_checkpoint)
