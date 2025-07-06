@@ -190,7 +190,8 @@ class VCMEvaluator:
             self.yolo_head = YOLOTinyHead(
                 input_channels=128,  # Compressor output channels (x_hat)
                 num_classes=80,      # COCO classes
-                num_anchors=3
+                num_anchors=3,
+                anchor_indices=[0,1,2]  # Chỉ dùng 3 anchor đầu tiên
             ).to(self.device)
             
             if self.args.stage3_checkpoint and os.path.exists(self.args.stage3_checkpoint):

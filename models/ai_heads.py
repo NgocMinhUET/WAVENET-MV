@@ -22,13 +22,15 @@ class YOLOTinyHead(nn.Module):
                  input_channels=128,
                  num_classes=80,  # COCO classes
                  num_anchors=3,
-                 input_size=416):
+                 input_size=416,
+                 anchor_indices=[0,1,2]):  # NEW: allow selecting anchor indices
         super().__init__()
         
         self.input_channels = input_channels
         self.num_classes = num_classes
         self.num_anchors = num_anchors
         self.input_size = input_size
+        self.anchor_indices = anchor_indices
         
         # Feature adapter từ compressed features (with downsampling)
         self.feature_adapter = nn.Sequential(
@@ -57,11 +59,12 @@ class YOLOTinyHead(nn.Module):
         )
         
         # Predefined anchor boxes (scaled cho different sizes)
-        self.register_buffer('anchors', torch.tensor([
+        all_anchors = torch.tensor([
             [10, 13], [16, 30], [33, 23],      # Small objects
             [30, 61], [62, 45], [59, 119],     # Medium objects  
             [116, 90], [156, 198], [373, 326]  # Large objects
-        ]).float())
+        ]).float()
+        self.register_buffer('anchors', all_anchors[anchor_indices])  # Only use selected anchors
         
     def _make_conv_layer(self, in_channels, out_channels, kernel_size):
         """Helper to create conv layer"""
@@ -114,19 +117,12 @@ class YOLOTinyHead(nn.Module):
         """
         batch_size = predictions.size(0)
         grid_h, grid_w = predictions.shape[2:4]
-        
-        # Get device
         device = predictions.device
-        
-        # Create grid coordinates
         grid_x = torch.arange(grid_w, device=device).repeat(grid_h, 1)
         grid_y = torch.arange(grid_h, device=device).repeat(grid_w, 1).t()
-        
         detections = []
-        
         for b in range(batch_size):
             pred = predictions[b]  # [anchors, H, W, 5+classes]
-            
             # Extract components
             x_center = torch.sigmoid(pred[..., 0]) + grid_x
             y_center = torch.sigmoid(pred[..., 1]) + grid_y
