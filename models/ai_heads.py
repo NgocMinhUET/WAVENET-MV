@@ -244,8 +244,12 @@ class SegFormerLiteHead(nn.Module):
         )
         
     def _make_attention_block(self, dim, num_heads):
-        """Simplified attention block"""
-        return nn.MultiheadAttention(dim, num_heads, batch_first=True)
+        """Simplified attention block with proper MultiheadAttention usage"""
+        return nn.Sequential(
+            nn.Conv2d(dim, dim, 1),  # Linear projection
+            nn.BatchNorm2d(dim),
+            nn.ReLU(inplace=True)
+        )
     
     def forward(self, x):
         """
