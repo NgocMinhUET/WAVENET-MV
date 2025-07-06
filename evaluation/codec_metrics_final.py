@@ -162,10 +162,38 @@ class CodecEvaluatorFinal:
             stage2_checkpoint = torch.load(self.args.stage2_checkpoint, map_location=self.device)
             print(f"Stage 2 checkpoint keys: {list(stage2_checkpoint.keys())}")
             
-            # Thử các key khác nhau
+            # Kiểm tra cấu trúc compressor trong checkpoint
             if 'compressor_state_dict' in stage2_checkpoint:
-                self.compressor.load_state_dict(stage2_checkpoint['compressor_state_dict'])
-                print("✓ Loaded compressor_state_dict")
+                checkpoint_keys = list(stage2_checkpoint['compressor_state_dict'].keys())
+                print(f"Compressor checkpoint keys (first 10): {checkpoint_keys[:10]}")
+                
+                # Tạo model phù hợp với cấu trúc checkpoint
+                if 'analysis_transform.conv1.weight' in checkpoint_keys:
+                    # Checkpoint có cấu trúc với conv1, norm1, skip_conv
+                    print("Detected checkpoint with conv1/norm1 structure")
+                    from models.compressor_improved import ImprovedCompressorVNVC
+                    self.compressor = ImprovedCompressorVNVC(
+                        input_channels=128,
+                        latent_channels=192,
+                        lambda_rd=128
+                    ).to(self.device)
+                else:
+                    # Checkpoint có cấu trúc đơn giản
+                    print("Detected checkpoint with simple structure")
+                    from models.compressor_vnvc import CompressorVNVC
+                    self.compressor = CompressorVNVC(
+                        input_channels=128,
+                        latent_channels=192,
+                        lambda_rd=128
+                    ).to(self.device)
+                
+                # Load state dict
+                try:
+                    self.compressor.load_state_dict(stage2_checkpoint['compressor_state_dict'])
+                    print("✓ Loaded compressor_state_dict successfully")
+                except Exception as e:
+                    print(f"⚠️ Failed to load compressor: {e}")
+                    print("⚠️ Using random weights for compressor")
             elif 'state_dict' in stage2_checkpoint:
                 self.compressor.load_state_dict(stage2_checkpoint['state_dict'])
                 print("✓ Loaded state_dict for compressor")
