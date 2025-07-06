@@ -22,6 +22,16 @@
 - ✅ Dùng synthesis_transform output (x_hat) thay vì analysis_transform output
 - ✅ Tránh lỗi `RuntimeError: expected input[8, 128, 256, 256] to have 192 channels`
 
+### 5. **YOLO Anchor Mismatch Fix** ⭐ NEW
+- ✅ Sửa số lượng anchors từ 9 → 3 cho YOLO head
+- ✅ Thêm `anchor_indices=[0,1,2]` để chỉ dùng 3 anchor đầu tiên
+- ✅ Tránh lỗi `The size of tensor a (3) must match the size of tensor b (9)`
+
+### 6. **JSON Serialization Fix** ⭐ NEW
+- ✅ Convert tất cả PyTorch tensors thành Python native types (float, int)
+- ✅ Sửa `evaluate_detection()` và `evaluate_segmentation()` để return Python types
+- ✅ Tránh lỗi `Object of type Tensor is not JSON serializable`
+
 ## 📋 Quy Trình Chạy Lại Trên Server
 
 ### Bước 1: Pull Code Mới
@@ -119,11 +129,17 @@ python -c "import torch; torch.cuda.empty_cache()"
 - ✅ Training và evaluation nhất quán
 - ✅ Không còn lỗi `expected input to have 192 channels`
 
+### Lỗi JSON Serialization
+- ✅ Đã fix: Convert tensors thành Python native types
+- ✅ Không còn lỗi `Object of type Tensor is not JSON serializable`
+
 ## 📊 Expected Results
 
 ### VCM Evaluation
 - ✅ Không còn lỗi collate function
 - ✅ Không còn lỗi channels mismatch
+- ✅ Không còn lỗi anchor mismatch
+- ✅ Không còn lỗi JSON serialization
 - ✅ Detection và segmentation chạy được
 - ✅ Output JSON: `results/vcm_results.json`
 
@@ -141,9 +157,11 @@ python -c "import torch; torch.cuda.empty_cache()"
 
 1. ✅ VCM evaluation chạy không lỗi collate
 2. ✅ VCM evaluation chạy không lỗi channels mismatch
-3. ✅ Codec metrics tính đúng PSNR/BPP/MS-SSIM
-4. ✅ Paper figures và tables được generate
-5. ✅ Complete evaluation pipeline hoàn thành
+3. ✅ VCM evaluation chạy không lỗi anchor mismatch
+4. ✅ VCM evaluation chạy không lỗi JSON serialization
+5. ✅ Codec metrics tính đúng PSNR/BPP/MS-SSIM
+6. ✅ Paper figures và tables được generate
+7. ✅ Complete evaluation pipeline hoàn thành
 
 ## 📞 Support
 
@@ -153,4 +171,4 @@ Nếu gặp lỗi:
 3. Commit fix và push
 4. Pull lại trên server
 
-**Good luck! 🚀** 
+**Good luck! 🚀**
