@@ -22,21 +22,43 @@ def check_model_devices(model, device, name="Model"):
     param_devices = set()
     for param_name, param in model.named_parameters():
         param_devices.add(str(param.device))
-        if param.device != device:
-            print(f"❌ Parameter {param_name}: {param.device}")
+        # Chỉ báo lỗi nếu device type khác nhau
+        if param.device.type != device.type:
+            print(f"❌ Parameter {param_name}: {param.device} (expected {device.type})")
     
     # Kiểm tra buffers
     buffer_devices = set()
     for buffer_name, buffer in model.named_buffers():
         if hasattr(buffer, 'device'):
             buffer_devices.add(str(buffer.device))
-            if buffer.device != device:
-                print(f"❌ Buffer {buffer_name}: {buffer.device}")
+            # Chỉ báo lỗi nếu device type khác nhau
+            if buffer.device.type != device.type:
+                print(f"❌ Buffer {buffer_name}: {buffer.device} (expected {device.type})")
     
     print(f"Parameter devices: {param_devices}")
     print(f"Buffer devices: {buffer_devices}")
     
-    return len(param_devices) == 1 and len(buffer_devices) == 1
+    # Kiểm tra tất cả parameters và buffers có cùng device type không
+    all_same_type = True
+    
+    # Kiểm tra parameters
+    if param_devices:
+        param_device_types = {str(param.device.type) for param in model.parameters()}
+        if len(param_device_types) > 1 or (param_device_types and device.type not in param_device_types):
+            all_same_type = False
+            print(f"❌ Parameter device types inconsistent: {param_device_types}")
+    
+    # Kiểm tra buffers
+    if buffer_devices:
+        buffer_device_types = {str(buffer.device.type) for buffer in model.buffers() if hasattr(buffer, 'device')}
+        if len(buffer_device_types) > 1 or (buffer_device_types and device.type not in buffer_device_types):
+            all_same_type = False
+            print(f"❌ Buffer device types inconsistent: {buffer_device_types}")
+    
+    if all_same_type:
+        print("✅ All parameters and buffers are on the expected device type")
+    
+    return all_same_type
 
 
 def test_device_consistency():
