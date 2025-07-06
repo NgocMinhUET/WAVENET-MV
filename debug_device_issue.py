@@ -14,7 +14,7 @@ from models.adamixnet import AdaMixNet
 from models.compressor_improved import ImprovedCompressorVNVC
 
 
-def check_model_devices(model, name="Model"):
+def check_model_devices(model, device, name="Model"):
     """Kiểm tra tất cả parameters và buffers trong model"""
     print(f"\n=== Checking {name} ===")
     
@@ -22,7 +22,7 @@ def check_model_devices(model, name="Model"):
     param_devices = set()
     for param_name, param in model.named_parameters():
         param_devices.add(str(param.device))
-        if param.device != torch.device('cuda'):
+        if param.device != device:
             print(f"❌ Parameter {param_name}: {param.device}")
     
     # Kiểm tra buffers
@@ -30,7 +30,7 @@ def check_model_devices(model, name="Model"):
     for buffer_name, buffer in model.named_buffers():
         if hasattr(buffer, 'device'):
             buffer_devices.add(str(buffer.device))
-            if buffer.device != torch.device('cuda'):
+            if buffer.device != device:
                 print(f"❌ Buffer {buffer_name}: {buffer.device}")
     
     print(f"Parameter devices: {param_devices}")
@@ -77,7 +77,7 @@ def test_device_consistency():
     
     all_consistent = True
     for name, model in models:
-        if not check_model_devices(model, name):
+        if not check_model_devices(model, device, name):
             all_consistent = False
     
     if not all_consistent:
