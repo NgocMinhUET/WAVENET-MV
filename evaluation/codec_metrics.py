@@ -191,12 +191,30 @@ class CodecEvaluator:
         ).to(self.device)
         
         # Load state dicts
+        print("Đang load state dictionaries...")
+        
+        # Kiểm tra cấu trúc checkpoint
+        checkpoint_keys = list(checkpoint.keys())
+        print(f"Checkpoint keys: {checkpoint_keys}")
+        
+        # Load các models chính
         if 'wavelet_state_dict' in checkpoint:
             self.wavelet_cnn.load_state_dict(checkpoint['wavelet_state_dict'])
+            print("✓ Đã load wavelet_state_dict")
+        
         if 'adamixnet_state_dict' in checkpoint:
             self.adamixnet.load_state_dict(checkpoint['adamixnet_state_dict'])
+            print("✓ Đã load adamixnet_state_dict")
+        
         if 'compressor_state_dict' in checkpoint:
             self.compressor.load_state_dict(checkpoint['compressor_state_dict'])
+            print("✓ Đã load compressor_state_dict")
+        
+        # Kiểm tra xem có AI heads không (Stage 3)
+        ai_heads_keys = [k for k in checkpoint_keys if 'ai' in k.lower() or 'head' in k.lower() or 'yolo' in k.lower() or 'segformer' in k.lower()]
+        if ai_heads_keys:
+            print(f"⚠️ Phát hiện AI heads trong checkpoint: {ai_heads_keys}")
+            print("ℹ️ Đây là checkpoint Stage 3, nhưng evaluation chỉ cần 3 models chính")
         
         # Đảm bảo tất cả các mô hình đều ở cùng device
         self.wavelet_cnn = self.wavelet_cnn.to(self.device)
