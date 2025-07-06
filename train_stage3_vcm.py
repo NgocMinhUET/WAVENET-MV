@@ -65,44 +65,47 @@ def main():
     # Create output directory
     os.makedirs(args.output_dir, exist_ok=True)
     
-    # Prepare arguments for stage3_main
-    stage3_args = argparse.Namespace(
-        # Model checkpoints
-        stage1_checkpoint=args.stage1_checkpoint,
-        stage2_checkpoint=args.stage2_checkpoint,
-        
-        # Dataset
-        dataset=args.dataset,
-        data_dir=args.data_dir,
-        image_size=args.image_size,
-        
-        # Training settings
-        enable_detection=args.enable_detection,
-        enable_segmentation=args.enable_segmentation,
-        batch_size=args.batch_size,
-        epochs=args.epochs,
-        lr=args.lr,
-        lambda_rd=args.lambda_rd,
-        
-        # Output
-        output_dir=args.output_dir,
-        experiment_name=args.experiment_name,
-        
-        # Additional settings
-        seed=42,
-        num_workers=4,
-        pin_memory=True,
-        save_freq=5,
-        val_freq=1
-    )
+    # Set environment variables for stage3_main
+    import sys
+    
+    # Modify sys.argv to pass arguments to stage3_main
+    original_argv = sys.argv.copy()
+    
+    # Build command line arguments for stage3_main
+    stage3_argv = [
+        'stage3_train_ai.py',
+        '--stage1_checkpoint', args.stage1_checkpoint,
+        '--stage2_checkpoint', args.stage2_checkpoint,
+        '--dataset', args.dataset,
+        '--data_dir', args.data_dir,
+        '--image_size', str(args.image_size),
+        '--batch_size', str(args.batch_size),
+        '--epochs', str(args.epochs),
+        '--learning_rate', str(args.lr),
+        '--lambda_rd', str(args.lambda_rd),
+        '--num_workers', '4'
+    ]
+    
+    # Add task flags
+    if args.enable_detection:
+        stage3_argv.append('--enable_detection')
+    if args.enable_segmentation:
+        stage3_argv.append('--enable_segmentation')
+    
+    # Replace sys.argv temporarily
+    sys.argv = stage3_argv
     
     print("🚀 Starting Stage 3 Training for VCM...")
     print(f"📊 Dataset: {args.dataset}")
     print(f"🎯 Tasks: Detection={args.enable_detection}, Segmentation={args.enable_segmentation}")
     print(f"📁 Output: {args.output_dir}")
     
-    # Run Stage 3 training
-    stage3_main(stage3_args)
+    try:
+        # Run Stage 3 training
+        stage3_main()
+    finally:
+        # Restore original sys.argv
+        sys.argv = original_argv
 
 
 if __name__ == '__main__':
