@@ -16,6 +16,12 @@
 - ✅ Sửa circular import trong `evaluate_vcm.py`
 - ✅ Import trực tiếp `VCMEvaluator` thay vì `main` function
 
+### 4. **AI Heads Input Channels Fix** ⭐ NEW
+- ✅ Sửa input_channels từ 192 → 128 cho YOLO và SegFormer heads
+- ✅ Đảm bảo nhất quán giữa training và evaluation
+- ✅ Dùng synthesis_transform output (x_hat) thay vì analysis_transform output
+- ✅ Tránh lỗi `RuntimeError: expected input[8, 128, 256, 256] to have 192 channels`
+
 ## 📋 Quy Trình Chạy Lại Trên Server
 
 ### Bước 1: Pull Code Mới
@@ -108,10 +114,16 @@ python -c "import torch; torch.cuda.empty_cache()"
 - Đảm bảo COCO dataset đã được setup: `datasets/COCO/`
 - Kiểm tra annotations: `datasets/COCO/annotations/instances_val2017.json`
 
+### Lỗi Channels Mismatch
+- ✅ Đã fix: AI heads dùng 128 channels (synthesis output)
+- ✅ Training và evaluation nhất quán
+- ✅ Không còn lỗi `expected input to have 192 channels`
+
 ## 📊 Expected Results
 
 ### VCM Evaluation
 - ✅ Không còn lỗi collate function
+- ✅ Không còn lỗi channels mismatch
 - ✅ Detection và segmentation chạy được
 - ✅ Output JSON: `results/vcm_results.json`
 
@@ -128,9 +140,10 @@ python -c "import torch; torch.cuda.empty_cache()"
 ## 🎯 Success Criteria
 
 1. ✅ VCM evaluation chạy không lỗi collate
-2. ✅ Codec metrics tính đúng PSNR/BPP/MS-SSIM
-3. ✅ Paper figures và tables được generate
-4. ✅ Complete evaluation pipeline hoàn thành
+2. ✅ VCM evaluation chạy không lỗi channels mismatch
+3. ✅ Codec metrics tính đúng PSNR/BPP/MS-SSIM
+4. ✅ Paper figures và tables được generate
+5. ✅ Complete evaluation pipeline hoàn thành
 
 ## 📞 Support
 
