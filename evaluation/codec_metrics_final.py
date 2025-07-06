@@ -282,15 +282,38 @@ class CodecEvaluatorFinal:
             )
         else:
             raise ValueError(f"Unsupported dataset: {self.args.dataset}")
-        
+
+        def custom_collate_fn(batch):
+            # Pad or resize all tensors in batch to the same shape
+            from torch.nn.functional import pad, interpolate
+            batch_out = {}
+            keys = batch[0].keys()
+            for key in keys:
+                items = [b[key] for b in batch]
+                if isinstance(items[0], torch.Tensor):
+                    # Nếu là mask hoặc label, pad về shape lớn nhất
+                    if items[0].ndim >= 2:
+                        max_shape = tuple(max(s) for s in zip(*[x.shape for x in items]))
+                        padded = []
+                        for x in items:
+                            pad_shape = [(0, m - s) for s, m in zip(x.shape[::-1], max_shape[::-1])]
+                            pad_shape = [p for pair in pad_shape for p in pair][::-1]
+                            padded.append(pad(x, pad_shape))
+                        batch_out[key] = torch.stack(padded)
+                    else:
+                        batch_out[key] = torch.stack(items)
+                else:
+                    batch_out[key] = items
+            return batch_out
+
         self.dataloader = DataLoader(
             dataset,
             batch_size=self.args.batch_size,
             shuffle=False,
             num_workers=0,
-            pin_memory=False
+            pin_memory=False,
+            collate_fn=custom_collate_fn
         )
-        
         print(f"✓ Dataset loaded: {len(dataset)} images")
         
     def evaluate_lambda(self, lambda_value):

@@ -74,7 +74,7 @@ def main():
     print(f"📁 Output: {args.output_json}")
     
     # Run VCM evaluation
-    vcm_main(args)
+    vcm_main()
 
 
 if __name__ == '__main__':
