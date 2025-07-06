@@ -321,17 +321,17 @@ class VCMEvaluator:
             high_conf_predictions = [p for p in all_predictions if p['score'] > 0.5]
             
             detection_results = {
-                'total_predictions': total_predictions,
-                'high_conf_predictions': len(high_conf_predictions),
-                'avg_confidence': np.mean([p['score'] for p in all_predictions]) if all_predictions else 0,
-                'detection_rate': len(high_conf_predictions) / max(1, total_predictions)
+                'total_predictions': int(total_predictions),  # Ensure it's a Python int
+                'high_conf_predictions': int(len(high_conf_predictions)),  # Ensure it's a Python int
+                'avg_confidence': float(np.mean([p['score'] for p in all_predictions]) if all_predictions else 0),  # Ensure it's a Python float
+                'detection_rate': float(len(high_conf_predictions) / max(1, total_predictions))  # Ensure it's a Python float
             }
         else:
             detection_results = {
                 'total_predictions': 0,
                 'high_conf_predictions': 0,
-                'avg_confidence': 0,
-                'detection_rate': 0
+                'avg_confidence': 0.0,  # Ensure it's a Python float
+                'detection_rate': 0.0  # Ensure it's a Python float
             }
         
         return detection_results
@@ -340,8 +340,8 @@ class VCMEvaluator:
         """Evaluate semantic segmentation performance"""
         print("\n🔍 Evaluating Semantic Segmentation...")
         
-        total_iou = 0
-        total_pixels = 0
+        total_iou = 0.0  # Use float instead of tensor
+        total_pixels = 0  # Use int instead of tensor
         
         with torch.no_grad():
             for batch_idx, batch in enumerate(tqdm(self.dataloader, desc="Segmentation")):
@@ -373,11 +373,11 @@ class VCMEvaluator:
                     # Simplified IoU calculation
                     # Assume foreground pixels are non-zero
                     foreground_pixels = (pred_mask > 0).float()
-                    total_pixels += foreground_pixels.numel()
+                    total_pixels += int(foreground_pixels.numel())  # Convert to int
                     
                     # IoU = intersection / union (simplified)
-                    intersection = foreground_pixels.sum()
-                    union = foreground_pixels.numel()
+                    intersection = float(foreground_pixels.sum().item())  # Convert to float
+                    union = float(foreground_pixels.numel())  # Convert to float
                     iou = intersection / max(1, union)
                     total_iou += iou
                 
@@ -389,9 +389,9 @@ class VCMEvaluator:
         avg_iou = total_iou / max(1, total_pixels / (self.args.image_size * self.args.image_size))
         
         segmentation_results = {
-            'avg_iou': avg_iou,
-            'total_pixels': total_pixels,
-            'foreground_ratio': total_pixels / max(1, total_pixels)
+            'avg_iou': float(avg_iou),  # Ensure it's a Python float
+            'total_pixels': int(total_pixels),  # Ensure it's a Python int
+            'foreground_ratio': float(total_pixels / max(1, total_pixels))  # Ensure it's a Python float
         }
         
         return segmentation_results
