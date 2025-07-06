@@ -341,11 +341,20 @@ class CodecEvaluatorFinal:
                     # Debug info cho batch đầu tiên
                     if batch_idx == 0:
                         print(f"  - Wavelet output: {wavelet_coeffs.shape}, device={wavelet_coeffs.device}")
+                        print(f"  - Wavelet range: [{wavelet_coeffs.min():.4f}, {wavelet_coeffs.max():.4f}]")
                         print(f"  - Mixed features: {mixed_features.shape}, device={mixed_features.device}")
+                        print(f"  - Mixed range: [{mixed_features.min():.4f}, {mixed_features.max():.4f}]")
                         print(f"  - Compressor output: {x_hat.shape}, device={x_hat.device}")
+                        print(f"  - X_hat range: [{x_hat.min():.4f}, {x_hat.max():.4f}]")
                         print(f"  - Y quantized: {y_quantized.shape}, device={y_quantized.device}")
                         print(f"  - Y quantized range: [{y_quantized.min():.4f}, {y_quantized.max():.4f}]")
                         print(f"  - Y quantized non-zero ratio: {(y_quantized != 0).float().mean():.4f}")
+                        
+                        # Kiểm tra likelihoods
+                        if likelihoods is not None:
+                            print(f"  - Likelihoods shape: {likelihoods.shape if hasattr(likelihoods, 'shape') else 'None'}")
+                            if hasattr(likelihoods, 'shape'):
+                                print(f"  - Likelihoods range: [{likelihoods.min():.4f}, {likelihoods.max():.4f}]")
                     
                     # Inverse transforms
                     recovered_coeffs = self.adamixnet.inverse_transform(x_hat)
@@ -465,7 +474,8 @@ class CodecEvaluatorFinal:
             param_devices = set()
             for param_name, param in model.named_parameters():
                 param_devices.add(str(param.device))
-                if param.device != self.device:
+                # So sánh device type thay vì exact device
+                if param.device.type != self.device.type:
                     print(f"❌ {name} parameter {param_name}: {param.device} (expected {self.device})")
                     all_consistent = False
             
@@ -474,7 +484,8 @@ class CodecEvaluatorFinal:
             for buffer_name, buffer in model.named_buffers():
                 if hasattr(buffer, 'device'):
                     buffer_devices.add(str(buffer.device))
-                    if buffer.device != self.device:
+                    # So sánh device type thay vì exact device
+                    if buffer.device.type != self.device.type:
                         print(f"❌ {name} buffer {buffer_name}: {buffer.device} (expected {self.device})")
                         all_consistent = False
             
