@@ -17,7 +17,8 @@ os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 # Add parent directory to path
 sys.path.append(str(Path(__file__).parent))
 
-from evaluation.vcm_metrics import main as vcm_main
+# Import VCM metrics directly
+from evaluation.vcm_metrics import VCMEvaluator
 
 
 def main():
@@ -74,7 +75,14 @@ def main():
     print(f"📁 Output: {args.output_json}")
     
     # Run VCM evaluation
-    vcm_main()
+    try:
+        evaluator = VCMEvaluator(args)
+        evaluator.evaluate_all()
+        evaluator.save_results()
+        print("✅ VCM evaluation completed successfully")
+    except Exception as e:
+        print(f"❌ VCM evaluation failed: {e}")
+        raise
 
 
 if __name__ == '__main__':
