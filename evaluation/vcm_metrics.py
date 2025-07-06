@@ -141,10 +141,18 @@ class VCMEvaluator:
                 num_anchors=3
             ).to(self.device)
             
-            if self.args.stage3_checkpoint:
-                checkpoint = torch.load(self.args.stage3_checkpoint, map_location=self.device)
-                if 'yolo_head_state_dict' in checkpoint:
-                    self.yolo_head.load_state_dict(checkpoint['yolo_head_state_dict'])
+            if self.args.stage3_checkpoint and os.path.exists(self.args.stage3_checkpoint):
+                try:
+                    checkpoint = torch.load(self.args.stage3_checkpoint, map_location=self.device)
+                    if 'yolo_head_state_dict' in checkpoint:
+                        self.yolo_head.load_state_dict(checkpoint['yolo_head_state_dict'])
+                        print("✓ Loaded YOLO head from checkpoint")
+                    else:
+                        print("⚠️ YOLO head state dict not found in checkpoint, using random weights")
+                except Exception as e:
+                    print(f"⚠️ Failed to load YOLO head: {e}, using random weights")
+            else:
+                print("⚠️ Stage 3 checkpoint not found, using random weights for YOLO head")
         
         # SegFormer Head
         if self.args.enable_segmentation:
@@ -153,10 +161,18 @@ class VCMEvaluator:
                 num_classes=21       # PASCAL VOC classes
             ).to(self.device)
             
-            if self.args.stage3_checkpoint:
-                checkpoint = torch.load(self.args.stage3_checkpoint, map_location=self.device)
-                if 'segformer_head_state_dict' in checkpoint:
-                    self.segformer_head.load_state_dict(checkpoint['segformer_head_state_dict'])
+            if self.args.stage3_checkpoint and os.path.exists(self.args.stage3_checkpoint):
+                try:
+                    checkpoint = torch.load(self.args.stage3_checkpoint, map_location=self.device)
+                    if 'segformer_head_state_dict' in checkpoint:
+                        self.segformer_head.load_state_dict(checkpoint['segformer_head_state_dict'])
+                        print("✓ Loaded SegFormer head from checkpoint")
+                    else:
+                        print("⚠️ SegFormer head state dict not found in checkpoint, using random weights")
+                except Exception as e:
+                    print(f"⚠️ Failed to load SegFormer head: {e}, using random weights")
+            else:
+                print("⚠️ Stage 3 checkpoint not found, using random weights for SegFormer head")
         
         print("✓ AI heads loaded")
     

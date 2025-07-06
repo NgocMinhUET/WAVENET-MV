@@ -332,8 +332,23 @@ class CodecEvaluatorFinal:
                                     padded.append(torch.nn.functional.pad(x, pad_shape))
                                 batch_out[key] = torch.stack(padded)
                     else:
-                        # For 1D tensors, stack directly
-                        batch_out[key] = torch.stack(items)
+                        # For 1D tensors, check if they have the same length
+                        lengths = [x.shape[0] for x in items]
+                        if len(set(lengths)) == 1:
+                            # All tensors have the same length, stack directly
+                            batch_out[key] = torch.stack(items)
+                        else:
+                            # Different lengths, pad to max length
+                            max_length = max(lengths)
+                            padded_items = []
+                            for x in items:
+                                if x.shape[0] < max_length:
+                                    padding = torch.zeros(max_length - x.shape[0], dtype=x.dtype)
+                                    padded_x = torch.cat([x, padding], dim=0)
+                                    padded_items.append(padded_x)
+                                else:
+                                    padded_items.append(x)
+                            batch_out[key] = torch.stack(padded_items)
                 else:
                     # For non-tensor items (like image_id), keep as list
                     batch_out[key] = items
