@@ -68,7 +68,7 @@ def generate_executive_summary(results, output_file):
         
         if 'codec' in results and not results['codec'].empty:
             codec_data = results['codec']
-            best_psnr = codec_data['psnr'].max()
+            best_psnr = codec_data['psnr_db'].max()
             best_mssim = codec_data['ms_ssim'].max()
             avg_bpp = codec_data['bpp'].mean()
             
@@ -105,7 +105,7 @@ def generate_detailed_results(results, output_file):
             
             for lambda_val in sorted(codec_data['lambda'].unique()):
                 lambda_data = codec_data[codec_data['lambda'] == lambda_val]
-                avg_psnr = lambda_data['psnr'].mean()
+                avg_psnr = lambda_data['psnr_db'].mean()
                 avg_mssim = lambda_data['ms_ssim'].mean()
                 avg_bpp = lambda_data['bpp'].mean()
                 
@@ -125,7 +125,7 @@ def generate_detailed_results(results, output_file):
             
             for method in baseline_data['method'].unique():
                 method_data = baseline_data[baseline_data['method'] == method]
-                avg_psnr = method_data['psnr'].mean()
+                avg_psnr = method_data['psnr_db'].mean()
                 avg_mssim = method_data['ms_ssim'].mean()
                 avg_bpp = method_data['bpp'].mean()
                 

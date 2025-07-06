@@ -29,6 +29,58 @@ from models.ai_heads import YOLOTinyHead, SegFormerLiteHead
 from datasets.dataset_loaders import COCODatasetLoader, DAVISDatasetLoader
 
 
+def vcm_collate_fn(batch):
+    """
+    Custom collate function để xử lý tensor có kích thước khác nhau
+    """
+    # Separate images and annotations
+    images = torch.stack([item['image'] for item in batch])
+    image_ids = [item['image_id'] for item in batch]
+    
+    # Handle boxes, labels, areas with different sizes
+    boxes_list = []
+    labels_list = []
+    areas_list = []
+    
+    for item in batch:
+        if 'boxes' in item:
+            boxes_list.append(item['boxes'])
+            labels_list.append(item['labels'])
+            areas_list.append(item['areas'])
+        else:
+            # Empty tensors if no annotations
+            boxes_list.append(torch.zeros(0, 4))
+            labels_list.append(torch.zeros(0, dtype=torch.long))
+            areas_list.append(torch.zeros(0))
+    
+    # Pad boxes, labels, areas to same size
+    max_boxes = max(boxes.shape[0] for boxes in boxes_list)
+    
+    padded_boxes = []
+    padded_labels = []
+    padded_areas = []
+    
+    for boxes, labels, areas in zip(boxes_list, labels_list, areas_list):
+        if boxes.shape[0] < max_boxes:
+            # Pad with zeros
+            pad_size = max_boxes - boxes.shape[0]
+            padded_boxes.append(torch.cat([boxes, torch.zeros(pad_size, 4)], dim=0))
+            padded_labels.append(torch.cat([labels, torch.zeros(pad_size, dtype=torch.long)], dim=0))
+            padded_areas.append(torch.cat([areas, torch.zeros(pad_size)], dim=0))
+        else:
+            padded_boxes.append(boxes)
+            padded_labels.append(labels)
+            padded_areas.append(areas)
+    
+    return {
+        'image': images,
+        'image_id': image_ids,
+        'boxes': torch.stack(padded_boxes),
+        'labels': torch.stack(padded_labels),
+        'areas': torch.stack(padded_areas)
+    }
+
+
 class VCMEvaluator:
     """Evaluator cho Video Coding for Machine tasks"""
     
@@ -200,7 +252,8 @@ class VCMEvaluator:
             batch_size=self.args.batch_size,
             shuffle=False,
             num_workers=0,
-            pin_memory=False
+            pin_memory=False,
+            collate_fn=vcm_collate_fn  # Use custom collate function
         )
         
         print(f"✓ Dataset loaded: {len(self.dataset)} images")

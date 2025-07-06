@@ -44,42 +44,66 @@ def load_results(results_dir):
     return results
 
 def generate_codec_table(results, output_file):
-    """Generate codec metrics table"""
-    if 'codec' not in results:
-        print("⚠️ Missing codec data for table")
-        return
+    """Generate LaTeX table for codec metrics"""
+    print("📊 Generating codec metrics table...")
     
-    codec_data = results['codec']
+    # Load results
+    if isinstance(results, str):
+        results_df = pd.read_csv(results)
+    else:
+        results_df = results
     
-    # Create LaTeX table
-    table_content = []
-    table_content.append("\\begin{table}[t]")
-    table_content.append("\\centering")
-    table_content.append("\\caption{Codec Performance Comparison}")
-    table_content.append("\\label{tab:codec_performance}")
-    table_content.append("\\begin{tabular}{lccc}")
-    table_content.append("\\hline")
-    table_content.append("Method & PSNR (dB) & MS-SSIM & BPP \\\\")
-    table_content.append("\\hline")
+    # Check available columns
+    print(f"Available columns: {list(results_df.columns)}")
     
-    if not codec_data.empty:
-        for lambda_val in sorted(codec_data['lambda'].unique()):
-            lambda_data = codec_data[codec_data['lambda'] == lambda_val]
-            avg_psnr = lambda_data['psnr'].mean()
-            avg_ms_ssim = lambda_data['ms_ssim'].mean()
-            avg_bpp = lambda_data['bpp'].mean()
-            
-            table_content.append(f"WAVENET-MV (λ={lambda_val}) & {avg_psnr:.2f} & {avg_ms_ssim:.4f} & {avg_bpp:.3f} \\\\")
+    # Use correct column names
+    psnr_col = 'psnr_db' if 'psnr_db' in results_df.columns else 'psnr'
+    bpp_col = 'bpp' if 'bpp' in results_df.columns else 'bits_per_pixel'
+    ms_ssim_col = 'ms_ssim' if 'ms_ssim' in results_df.columns else 'ms_ssim_db'
     
-    table_content.append("\\hline")
-    table_content.append("\\end{tabular}")
-    table_content.append("\\end{table}")
+    # Calculate averages for each lambda
+    table_data = []
+    for lambda_val in sorted(results_df['lambda'].unique()):
+        lambda_data = results_df[results_df['lambda'] == lambda_val]
+        
+        avg_psnr = lambda_data[psnr_col].mean()
+        avg_bpp = lambda_data[bpp_col].mean()
+        avg_ms_ssim = lambda_data[ms_ssim_col].mean()
+        
+        table_data.append({
+            'lambda': lambda_val,
+            'psnr': f"{avg_psnr:.2f}",
+            'bpp': f"{avg_bpp:.2f}",
+            'ms_ssim': f"{avg_ms_ssim:.3f}"
+        })
     
-    # Write to file
+    # Generate LaTeX table
+    latex_table = r"""
+\begin{table}[t]
+\centering
+\caption{Codec Performance Metrics}
+\label{tab:codec_metrics}
+\begin{tabular}{cccc}
+\toprule
+$\lambda$ & PSNR (dB) & BPP & MS-SSIM \\
+\midrule
+"""
+    
+    for row in table_data:
+        latex_table += f"{row['lambda']} & {row['psnr']} & {row['bpp']} & {row['ms_ssim']} \\\\\n"
+    
+    latex_table += r"""
+\bottomrule
+\end{tabular}
+\end{table}
+"""
+    
+    # Save table
     with open(output_file, 'w') as f:
-        f.write('\n'.join(table_content))
+        f.write(latex_table)
     
-    print(f"✅ Generated codec table: {output_file}")
+    print(f"✓ Saved codec table to {output_file}")
+    return output_file
 
 def generate_baseline_table(results, output_file):
     """Generate baseline comparison table"""

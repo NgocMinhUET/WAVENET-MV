@@ -51,38 +51,42 @@ def load_results(results_dir):
 
 def generate_rd_curves(results, output_dir):
     """Generate Rate-Distortion curves"""
-    if 'codec' not in results or 'baseline' not in results:
-        print("⚠️ Missing data for RD curves")
-        return
+    print("📊 Generating Rate-Distortion curves...")
     
+    # Load results
+    if isinstance(results, str):
+        results_df = pd.read_csv(results)
+    else:
+        results_df = results
+    
+    # Check available columns
+    print(f"Available columns: {list(results_df.columns)}")
+    
+    # Use correct column names
+    psnr_col = 'psnr_db' if 'psnr_db' in results_df.columns else 'psnr'
+    bpp_col = 'bpp' if 'bpp' in results_df.columns else 'bits_per_pixel'
+    ms_ssim_col = 'ms_ssim' if 'ms_ssim' in results_df.columns else 'ms_ssim_db'
+    
+    # Create figure with subplots
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
     
-    # WAVENET-MV RD curves
-    codec_data = results['codec']
-    if not codec_data.empty:
-        for lambda_val in sorted(codec_data['lambda'].unique()):
-            lambda_data = codec_data[codec_data['lambda'] == lambda_val]
-            ax1.plot(lambda_data['bpp'], lambda_data['psnr'], 
-                    marker='o', label=f'WAVENET-MV (λ={lambda_val})', linewidth=2)
-            ax2.plot(lambda_data['bpp'], lambda_data['ms_ssim'], 
-                    marker='o', label=f'WAVENET-MV (λ={lambda_val})', linewidth=2)
+    # Plot PSNR vs BPP
+    for lambda_val in results_df['lambda'].unique():
+        lambda_data = results_df[results_df['lambda'] == lambda_val]
+        ax1.plot(lambda_data[bpp_col], lambda_data[psnr_col], 
+                marker='o', label=f'λ={lambda_val}')
     
-    # Baseline methods
-    baseline_data = results['baseline']
-    if not baseline_data.empty:
-        for method in baseline_data['method'].unique():
-            method_data = baseline_data[baseline_data['method'] == method]
-            ax1.plot(method_data['bpp'], method_data['psnr'], 
-                    marker='s', linestyle='--', label=f'{method}', linewidth=2)
-            ax2.plot(method_data['bpp'], method_data['ms_ssim'], 
-                    marker='s', linestyle='--', label=f'{method}', linewidth=2)
-    
-    # Formatting
     ax1.set_xlabel('Bits per Pixel (BPP)')
     ax1.set_ylabel('PSNR (dB)')
     ax1.set_title('Rate-Distortion: PSNR vs BPP')
     ax1.legend()
     ax1.grid(True, alpha=0.3)
+    
+    # Plot MS-SSIM vs BPP
+    for lambda_val in results_df['lambda'].unique():
+        lambda_data = results_df[results_df['lambda'] == lambda_val]
+        ax2.plot(lambda_data[bpp_col], lambda_data[ms_ssim_col], 
+                marker='s', label=f'λ={lambda_val}')
     
     ax2.set_xlabel('Bits per Pixel (BPP)')
     ax2.set_ylabel('MS-SSIM')
@@ -91,13 +95,13 @@ def generate_rd_curves(results, output_dir):
     ax2.grid(True, alpha=0.3)
     
     plt.tight_layout()
-    plt.savefig(os.path.join(output_dir, 'rate_distortion_comparison.pdf'), 
-                dpi=300, bbox_inches='tight')
-    plt.savefig(os.path.join(output_dir, 'rate_distortion_comparison.png'), 
-                dpi=300, bbox_inches='tight')
-    plt.close()
     
-    print("✅ Generated Rate-Distortion curves")
+    # Save figure
+    output_path = os.path.join(output_dir, 'rate_distortion_curves.pdf')
+    plt.savefig(output_path, dpi=300, bbox_inches='tight')
+    print(f"✓ Saved RD curves to {output_path}")
+    
+    return output_path
 
 def generate_task_curves(results, output_dir):
     """Generate Task Performance curves"""
