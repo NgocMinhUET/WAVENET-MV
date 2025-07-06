@@ -11,6 +11,9 @@ import sys
 import argparse
 from pathlib import Path
 
+# Fix OpenMP warning
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+
 # Add parent directory to path
 sys.path.append(str(Path(__file__).parent))
 

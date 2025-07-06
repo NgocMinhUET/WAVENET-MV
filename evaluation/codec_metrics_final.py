@@ -21,6 +21,9 @@ import cv2
 from pathlib import Path
 import math
 
+# Fix OpenMP warning
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+
 # Add parent directory to path
 sys.path.append(str(Path(__file__).parent.parent))
 

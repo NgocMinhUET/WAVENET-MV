@@ -57,7 +57,7 @@ def main():
         --enable_segmentation \
         --batch_size {args.batch_size} \
         --max_samples {args.max_samples} \
-        --output_dir {args.output_dir}"""
+        --output_json {args.output_dir}/vcm_results.json"""
     
     if not run_command(vcm_cmd, "VCM Evaluation"):
         print("⚠️ VCM evaluation failed, but continuing...")
@@ -73,7 +73,7 @@ def main():
         --batch_size {args.batch_size} \
         --max_samples {args.max_samples} \
         --lambdas 64 128 256 512 1024 \
-        --output_dir {args.output_dir}"""
+        --output_csv {args.output_dir}/codec_metrics_final.csv"""
     
     if not run_command(codec_cmd, "Codec Metrics Evaluation"):
         print("⚠️ Codec metrics evaluation failed, but continuing...")
@@ -87,7 +87,7 @@ def main():
         --max_samples {args.max_samples} \
         --methods JPEG WebP PNG \
         --qualities 10 30 50 70 90 \
-        --output_dir {args.output_dir}"""
+        --output_csv {args.output_dir}/baseline_comparison.csv"""
     
     if not run_command(baseline_cmd, "Baseline Comparison"):
         print("⚠️ Baseline comparison failed, but continuing...")

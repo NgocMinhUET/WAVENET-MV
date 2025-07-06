@@ -21,6 +21,9 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+# Fix OpenMP warning
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+
 # Add parent directory
 sys.path.append(str(Path(__file__).parent.parent))
 
