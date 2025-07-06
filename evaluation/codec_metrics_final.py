@@ -284,26 +284,60 @@ class CodecEvaluatorFinal:
             raise ValueError(f"Unsupported dataset: {self.args.dataset}")
 
         def custom_collate_fn(batch):
-            # Pad or resize all tensors in batch to the same shape
-            from torch.nn.functional import pad, interpolate
+            """Custom collate function to handle variable size tensors"""
             batch_out = {}
             keys = batch[0].keys()
+            
             for key in keys:
                 items = [b[key] for b in batch]
+                
                 if isinstance(items[0], torch.Tensor):
-                    # Nếu là mask hoặc label, pad về shape lớn nhất
+                    # Handle tensors with different shapes
                     if items[0].ndim >= 2:
-                        max_shape = tuple(max(s) for s in zip(*[x.shape for x in items]))
-                        padded = []
-                        for x in items:
-                            pad_shape = [(0, m - s) for s, m in zip(x.shape[::-1], max_shape[::-1])]
-                            pad_shape = [p for pair in pad_shape for p in pair][::-1]
-                            padded.append(pad(x, pad_shape))
-                        batch_out[key] = torch.stack(padded)
+                        # For 2D+ tensors (like boxes, masks), handle each case
+                        if key in ['boxes', 'labels', 'areas']:
+                            # For detection annotations, pad to max number of objects
+                            max_objects = max(x.shape[0] for x in items)
+                            padded_items = []
+                            
+                            for x in items:
+                                if x.shape[0] < max_objects:
+                                    # Pad with zeros
+                                    if key == 'boxes':
+                                        padding = torch.zeros(max_objects - x.shape[0], 4, dtype=x.dtype)
+                                    elif key == 'labels':
+                                        padding = torch.zeros(max_objects - x.shape[0], dtype=x.dtype)
+                                    elif key == 'areas':
+                                        padding = torch.zeros(max_objects - x.shape[0], dtype=x.dtype)
+                                    else:
+                                        padding = torch.zeros(max_objects - x.shape[0], *x.shape[1:], dtype=x.dtype)
+                                    
+                                    padded_x = torch.cat([x, padding], dim=0)
+                                    padded_items.append(padded_x)
+                                else:
+                                    padded_items.append(x)
+                            
+                            batch_out[key] = torch.stack(padded_items)
+                        else:
+                            # For other tensors, try to stack directly
+                            try:
+                                batch_out[key] = torch.stack(items)
+                            except RuntimeError:
+                                # If still fails, pad to max shape
+                                max_shape = tuple(max(s) for s in zip(*[x.shape for x in items]))
+                                padded = []
+                                for x in items:
+                                    pad_shape = [(0, m - s) for s, m in zip(x.shape[::-1], max_shape[::-1])]
+                                    pad_shape = [p for pair in pad_shape for p in pair][::-1]
+                                    padded.append(torch.nn.functional.pad(x, pad_shape))
+                                batch_out[key] = torch.stack(padded)
                     else:
+                        # For 1D tensors, stack directly
                         batch_out[key] = torch.stack(items)
                 else:
+                    # For non-tensor items (like image_id), keep as list
                     batch_out[key] = items
+            
             return batch_out
 
         self.dataloader = DataLoader(

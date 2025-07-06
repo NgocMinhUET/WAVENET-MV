@@ -73,17 +73,53 @@ class VCMEvaluator:
             C_mix=128
         ).to(self.device)
         
-        # CompressorVNVC
-        self.compressor = CompressorVNVC(
-            input_channels=128,
-            latent_channels=192,
-            lambda_rd=128
-        ).to(self.device)
-        
+        # Load checkpoint first to detect architecture
         if self.args.stage2_checkpoint:
             checkpoint = torch.load(self.args.stage2_checkpoint, map_location=self.device)
             if 'compressor_state_dict' in checkpoint:
-                self.compressor.load_state_dict(checkpoint['compressor_state_dict'])
+                checkpoint_keys = list(checkpoint['compressor_state_dict'].keys())
+                print(f"Compressor checkpoint keys (first 10): {checkpoint_keys[:10]}")
+                
+                # Detect architecture based on checkpoint keys
+                if 'analysis_transform.conv1.weight' in checkpoint_keys:
+                    # ImprovedCompressorVNVC with conv1/norm1 structure
+                    print("Detected ImprovedCompressorVNVC architecture")
+                    from models.compressor_improved import ImprovedCompressorVNVC
+                    self.compressor = ImprovedCompressorVNVC(
+                        input_channels=128,
+                        latent_channels=192,
+                        lambda_rd=128
+                    ).to(self.device)
+                else:
+                    # Standard CompressorVNVC
+                    print("Detected standard CompressorVNVC architecture")
+                    self.compressor = CompressorVNVC(
+                        input_channels=128,
+                        latent_channels=192,
+                        lambda_rd=128
+                    ).to(self.device)
+                
+                # Load state dict
+                try:
+                    self.compressor.load_state_dict(checkpoint['compressor_state_dict'])
+                    print("✓ Loaded compressor_state_dict successfully")
+                except Exception as e:
+                    print(f"⚠️ Failed to load compressor: {e}")
+                    print("⚠️ Using random weights for compressor")
+            else:
+                # Fallback to standard CompressorVNVC
+                self.compressor = CompressorVNVC(
+                    input_channels=128,
+                    latent_channels=192,
+                    lambda_rd=128
+                ).to(self.device)
+        else:
+            # No checkpoint, use standard CompressorVNVC
+            self.compressor = CompressorVNVC(
+                input_channels=128,
+                latent_channels=192,
+                lambda_rd=128
+            ).to(self.device)
         
         # Freeze compression pipeline
         for model in [self.wavelet_cnn, self.adamixnet, self.compressor]:
