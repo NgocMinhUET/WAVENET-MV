@@ -47,8 +47,14 @@ def generate_codec_table(results, output_file):
     """Generate LaTeX table for codec metrics"""
     print("📊 Generating codec metrics table...")
     
-    # Load results
-    if isinstance(results, str):
+    # Load results - handle both dict and DataFrame
+    if isinstance(results, dict):
+        if 'codec' in results and results['codec'] is not None:
+            results_df = results['codec']
+        else:
+            print("⚠️ No codec data found in results")
+            return
+    elif isinstance(results, str):
         results_df = pd.read_csv(results)
     else:
         results_df = results

@@ -53,8 +53,14 @@ def generate_rd_curves(results, output_dir):
     """Generate Rate-Distortion curves"""
     print("📊 Generating Rate-Distortion curves...")
     
-    # Load results
-    if isinstance(results, str):
+    # Load results - handle both dict and DataFrame
+    if isinstance(results, dict):
+        if 'codec' in results and results['codec'] is not None:
+            results_df = results['codec']
+        else:
+            print("⚠️ No codec data found in results")
+            return
+    elif isinstance(results, str):
         results_df = pd.read_csv(results)
     else:
         results_df = results
