@@ -288,6 +288,14 @@ class CodecEvaluatorFinal:
         # Kiểm tra device consistency trước khi bắt đầu
         self.check_device_consistency()
         
+        # Enable gradient checkpointing để giảm memory usage
+        if hasattr(self.wavelet_cnn, 'gradient_checkpointing_enable'):
+            self.wavelet_cnn.gradient_checkpointing_enable()
+        if hasattr(self.adamixnet, 'gradient_checkpointing_enable'):
+            self.adamixnet.gradient_checkpointing_enable()
+        if hasattr(self.compressor, 'gradient_checkpointing_enable'):
+            self.compressor.gradient_checkpointing_enable()
+        
         # Metrics accumulation
         psnr_values = []
         ms_ssim_values = []
@@ -304,6 +312,17 @@ class CodecEvaluatorFinal:
                 # Đảm bảo images ở đúng device và dtype
                 images = images.to(self.device, dtype=torch.float32, non_blocking=True)
                 
+                # Kiểm tra GPU memory usage mỗi 100 batches
+                if batch_idx % 100 == 0 and hasattr(torch.cuda, 'memory_allocated'):
+                    memory_allocated = torch.cuda.memory_allocated() / 1024**3  # GB
+                    memory_reserved = torch.cuda.memory_reserved() / 1024**3  # GB
+                    print(f"📊 Batch {batch_idx}: GPU Memory - Allocated: {memory_allocated:.2f}GB, Reserved: {memory_reserved:.2f}GB")
+                    
+                    # Nếu memory usage quá cao, force clear cache
+                    if memory_allocated > 0.8 * torch.cuda.get_device_properties(0).total_memory / 1024**3:
+                        print("⚠️ High GPU memory usage detected, clearing cache...")
+                        torch.cuda.empty_cache()
+                
                 # Debug info cho batch đầu tiên
                 if batch_idx == 0:
                     print(f"🔍 Batch 0 debug:")
@@ -311,6 +330,9 @@ class CodecEvaluatorFinal:
                     print(f"  - Input range: [{images.min():.4f}, {images.max():.4f}]")
                 
                 try:
+                    # Đảm bảo models vẫn ở đúng device trước mỗi forward pass
+                    self.ensure_models_on_device()
+                    
                     # Forward pass through pipeline
                     wavelet_coeffs = self.wavelet_cnn(images)
                     mixed_features = self.adamixnet(wavelet_coeffs)
@@ -353,8 +375,28 @@ class CodecEvaluatorFinal:
                         bpp_values.append(bpp_val)
                 
                 except Exception as e:
-                    print(f"Error processing batch {batch_idx}: {e}")
-                    continue
+                    error_msg = str(e)
+                    if "Input type (torch.cuda.FloatTensor) and weight type (torch.FloatTensor) should be the same" in error_msg:
+                        print(f"🚨 Device mismatch detected at batch {batch_idx}! Forcing models to device...")
+                        # Force move all models to device immediately
+                        self.wavelet_cnn = self.wavelet_cnn.to(self.device)
+                        self.adamixnet = self.adamixnet.to(self.device)
+                        self.compressor = self.compressor.to(self.device)
+                        
+                        # Force move all parameters
+                        for model in [self.wavelet_cnn, self.adamixnet, self.compressor]:
+                            for param in model.parameters():
+                                param.data = param.data.to(self.device, non_blocking=True)
+                        
+                        # Clear GPU cache
+                        if hasattr(torch.cuda, 'empty_cache'):
+                            torch.cuda.empty_cache()
+                        
+                        print(f"✅ Models forced to {self.device}, retrying batch {batch_idx}...")
+                        continue
+                    else:
+                        print(f"Error processing batch {batch_idx}: {e}")
+                        continue
                 
                 # Early stop for quick testing
                 if self.args.max_samples and batch_idx * self.args.batch_size >= self.args.max_samples:
@@ -401,6 +443,10 @@ class CodecEvaluatorFinal:
             
             # Set model to eval mode
             model.eval()
+            
+            # Force garbage collection để giải phóng memory
+            if hasattr(torch.cuda, 'empty_cache'):
+                torch.cuda.empty_cache()
     
     def check_device_consistency(self):
         """Kiểm tra device consistency của tất cả models và in thông tin debug"""
