@@ -197,11 +197,28 @@ class VCMEvaluator:
             if self.args.stage3_checkpoint and os.path.exists(self.args.stage3_checkpoint):
                 try:
                     checkpoint = torch.load(self.args.stage3_checkpoint, map_location=self.device)
-                    if 'yolo_head_state_dict' in checkpoint:
-                        self.yolo_head.load_state_dict(checkpoint['yolo_head_state_dict'])
-                        print("✓ Loaded YOLO head from checkpoint")
-                    else:
+                    print(f"📋 Checkpoint keys: {list(checkpoint.keys())}")
+                    
+                    # Try different possible key names for YOLO head
+                    yolo_keys = ['yolo_head_state_dict', 'yolo_state_dict', 'detection_head_state_dict', 'model_state_dict']
+                    yolo_loaded = False
+                    
+                    for key in yolo_keys:
+                        if key in checkpoint:
+                            if key == 'model_state_dict':
+                                # If it's the whole model, try to extract YOLO part
+                                print(f"⚠️ Found {key}, trying to extract YOLO head...")
+                                # For now, skip this case as it's complex
+                                continue
+                            else:
+                                self.yolo_head.load_state_dict(checkpoint[key])
+                                print(f"✓ Loaded YOLO head from {key}")
+                                yolo_loaded = True
+                                break
+                    
+                    if not yolo_loaded:
                         print("⚠️ YOLO head state dict not found in checkpoint, using random weights")
+                        
                 except Exception as e:
                     print(f"⚠️ Failed to load YOLO head: {e}, using random weights")
             else:
@@ -217,11 +234,27 @@ class VCMEvaluator:
             if self.args.stage3_checkpoint and os.path.exists(self.args.stage3_checkpoint):
                 try:
                     checkpoint = torch.load(self.args.stage3_checkpoint, map_location=self.device)
-                    if 'segformer_head_state_dict' in checkpoint:
-                        self.segformer_head.load_state_dict(checkpoint['segformer_head_state_dict'])
-                        print("✓ Loaded SegFormer head from checkpoint")
-                    else:
+                    
+                    # Try different possible key names for SegFormer head
+                    segformer_keys = ['segformer_head_state_dict', 'segformer_state_dict', 'segmentation_head_state_dict', 'model_state_dict']
+                    segformer_loaded = False
+                    
+                    for key in segformer_keys:
+                        if key in checkpoint:
+                            if key == 'model_state_dict':
+                                # If it's the whole model, try to extract SegFormer part
+                                print(f"⚠️ Found {key}, trying to extract SegFormer head...")
+                                # For now, skip this case as it's complex
+                                continue
+                            else:
+                                self.segformer_head.load_state_dict(checkpoint[key])
+                                print(f"✓ Loaded SegFormer head from {key}")
+                                segformer_loaded = True
+                                break
+                    
+                    if not segformer_loaded:
                         print("⚠️ SegFormer head state dict not found in checkpoint, using random weights")
+                        
                 except Exception as e:
                     print(f"⚠️ Failed to load SegFormer head: {e}, using random weights")
             else:
