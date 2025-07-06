@@ -203,10 +203,10 @@ class CodecEvaluator:
         self.adamixnet = self.adamixnet.to(self.device)
         self.compressor = self.compressor.to(self.device)
         
-        # Fix device mismatch cho từng module con
-        self._fix_device_mismatch_complete(self.wavelet_cnn)
-        self._fix_device_mismatch_complete(self.adamixnet)
-        self._fix_device_mismatch_complete(self.compressor)
+        # Fix device mismatch cho từng module con - sử dụng phương pháp mạnh mẽ
+        self.wavelet_cnn = self.force_move_to_device(self.wavelet_cnn, self.device)
+        self.adamixnet = self.force_move_to_device(self.adamixnet, self.device)
+        self.compressor = self.force_move_to_device(self.compressor, self.device)
         
         # Set to evaluation mode
         self.wavelet_cnn.eval()
@@ -303,6 +303,76 @@ class CodecEvaluator:
             print(f"✓ Tất cả thành phần của {model.__class__.__name__} đã ở {self.device}")
         else:
             print(f"⚠️ Vẫn còn một số thành phần không ở {self.device}!")
+    
+    def force_move_to_device(self, model, device):
+        """
+        Phương pháp mạnh mẽ để đảm bảo model hoàn toàn ở trên device.
+        Sử dụng cách tiếp cận brute force để di chuyển tất cả thành phần.
+        """
+        print(f"🚀 Force moving {model.__class__.__name__} to {device}")
+        
+        # Bước 1: Di chuyển toàn bộ model
+        model = model.to(device)
+        
+        # Bước 2: Di chuyển từng module một cách thủ công
+        for name, child in model.named_children():
+            if hasattr(child, 'to'):
+                child = child.to(device)
+                setattr(model, name, child)
+        
+        # Bước 3: Di chuyển từng parameter một cách thủ công
+        for name, param in model.named_parameters():
+            if param.device != device:
+                # Tạo parameter mới trên device đúng
+                new_param = torch.nn.Parameter(param.data.to(device), requires_grad=param.requires_grad)
+                
+                # Tìm module chứa parameter này
+                module_names = name.split('.')
+                current_module = model
+                
+                # Đi đến module cha
+                for module_name in module_names[:-1]:
+                    current_module = getattr(current_module, module_name)
+                
+                # Thay thế parameter
+                param_name = module_names[-1]
+                setattr(current_module, param_name, new_param)
+                print(f"  - Force moved parameter {name} to {device}")
+        
+        # Bước 4: Di chuyển từng buffer một cách thủ công
+        for name, buffer in model.named_buffers():
+            if hasattr(buffer, 'device') and buffer.device != device:
+                # Tìm module chứa buffer này
+                module_names = name.split('.')
+                current_module = model
+                
+                # Đi đến module cha
+                for module_name in module_names[:-1]:
+                    current_module = getattr(current_module, module_name)
+                
+                # Thay thế buffer
+                buffer_name = module_names[-1]
+                current_module.register_buffer(buffer_name, buffer.to(device))
+                print(f"  - Force moved buffer {name} to {device}")
+        
+        # Bước 5: Kiểm tra cuối cùng
+        all_correct = True
+        for name, param in model.named_parameters():
+            if param.device != device:
+                print(f"❌ ERROR: Parameter {name} still on {param.device}")
+                all_correct = False
+        
+        for name, buffer in model.named_buffers():
+            if hasattr(buffer, 'device') and buffer.device != device:
+                print(f"❌ ERROR: Buffer {name} still on {buffer.device}")
+                all_correct = False
+        
+        if all_correct:
+            print(f"✅ SUCCESS: All components of {model.__class__.__name__} moved to {device}")
+        else:
+            print(f"❌ FAILED: Some components still not on {device}")
+        
+        return model
     
     def _custom_collate_fn(self, batch):
         """Custom collate function to handle COCO dataset safely"""
