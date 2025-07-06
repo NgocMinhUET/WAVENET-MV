@@ -233,7 +233,7 @@ class Stage3Trainer:
         # 4. YOLO-tiny Head
         if self.args.enable_detection:
             self.yolo_head = YOLOTinyHead(
-                input_channels=192,  # FIXED: CompressorVNVC analysis_transform outputs 192 channels
+                input_channels=128,  # Compressor synthesis_transform output channels (x_hat)
                 num_classes=80,      # COCO classes
                 num_anchors=3
             ).to(self.device)
@@ -241,7 +241,7 @@ class Stage3Trainer:
         # 5. SegFormer-lite Head  
         if self.args.enable_segmentation:
             self.segformer_head = SegFormerLiteHead(
-                input_channels=192,  # FIXED: CompressorVNVC analysis_transform outputs 192 channels
+                input_channels=128,  # Compressor synthesis_transform output channels (x_hat)
                 num_classes=21       # PASCAL VOC classes
             ).to(self.device)
         
@@ -360,10 +360,10 @@ class Stage3Trainer:
             # AdaMixNet: wavelet coeffs → mixed features
             mixed_features = self.adamix_model(wavelet_coeffs)
             
-            # Stage 2: Compression (analysis only - no synthesis needed)
-            compressed_features = self.compressor_model.analysis_transform(mixed_features)
+            # Stage 2: Compression (full forward pass để lấy x_hat)
+            x_hat, likelihoods, y_quantized = self.compressor_model(mixed_features)
             
-        return compressed_features
+        return x_hat  # Return synthesis output (128 channels)
     
     def compute_yolo_loss(self, predictions, targets, batch_size):
         """

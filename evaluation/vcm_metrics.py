@@ -188,7 +188,7 @@ class VCMEvaluator:
         # YOLO Head
         if self.args.enable_detection:
             self.yolo_head = YOLOTinyHead(
-                input_channels=192,  # Compressor output channels
+                input_channels=128,  # Compressor output channels (x_hat)
                 num_classes=80,      # COCO classes
                 num_anchors=3
             ).to(self.device)
@@ -209,7 +209,7 @@ class VCMEvaluator:
         # SegFormer Head
         if self.args.enable_segmentation:
             self.segformer_head = SegFormerLiteHead(
-                input_channels=192,  # Compressor output channels
+                input_channels=128,  # Compressor output channels (x_hat)
                 num_classes=21       # PASCAL VOC classes
             ).to(self.device)
             
