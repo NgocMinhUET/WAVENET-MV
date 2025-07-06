@@ -183,16 +183,14 @@ class VCMEvaluator:
                 data_dir=self.args.data_dir,
                 subset=self.args.split,
                 image_size=self.args.image_size,
-                augmentation=False,
-                return_annotations=True  # Cần annotations cho evaluation
+                augmentation=False
             )
         elif self.args.dataset == 'davis':
             self.dataset = DAVISDatasetLoader(
                 data_dir=self.args.data_dir,
                 subset=self.args.split,
                 image_size=self.args.image_size,
-                augmentation=False,
-                return_annotations=True
+                augmentation=False
             )
         else:
             raise ValueError(f"Unsupported dataset: {self.args.dataset}")
