@@ -131,10 +131,14 @@ def generate_baseline_table(results, output_file):
     table_content.append("\\hline")
     
     if not baseline_data.empty:
+        # Use correct column names
+        psnr_col = 'psnr_db' if 'psnr_db' in baseline_data.columns else 'psnr'
+        ms_ssim_col = 'ms_ssim' if 'ms_ssim' in baseline_data.columns else 'ms_ssim_db'
+        
         for method in baseline_data['method'].unique():
             method_data = baseline_data[baseline_data['method'] == method]
-            avg_psnr = method_data['psnr'].mean()
-            avg_ms_ssim = method_data['ms_ssim'].mean()
+            avg_psnr = method_data[psnr_col].mean()
+            avg_ms_ssim = method_data[ms_ssim_col].mean()
             avg_bpp = method_data['bpp'].mean()
             
             table_content.append(f"{method} & {avg_psnr:.2f} & {avg_ms_ssim:.4f} & {avg_bpp:.3f} \\\\")
@@ -210,10 +214,14 @@ def generate_ablation_table(results, output_file):
     table_content.append("\\hline")
     
     if not codec_data.empty:
+        # Use correct column names
+        psnr_col = 'psnr_db' if 'psnr_db' in codec_data.columns else 'psnr'
+        ms_ssim_col = 'ms_ssim' if 'ms_ssim' in codec_data.columns else 'ms_ssim_db'
+        
         for lambda_val in sorted(codec_data['lambda'].unique()):
             lambda_data = codec_data[codec_data['lambda'] == lambda_val]
-            avg_psnr = lambda_data['psnr'].mean()
-            avg_ms_ssim = lambda_data['ms_ssim'].mean()
+            avg_psnr = lambda_data[psnr_col].mean()
+            avg_ms_ssim = lambda_data[ms_ssim_col].mean()
             avg_bpp = lambda_data['bpp'].mean()
             
             table_content.append(f"{lambda_val} & {avg_psnr:.2f} & {avg_ms_ssim:.4f} & {avg_bpp:.3f} \\\\")

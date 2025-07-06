@@ -162,7 +162,9 @@ def generate_ablation_study(results, output_dir):
     
     if not codec_data.empty:
         lambda_vals = sorted(codec_data['lambda'].unique())
-        avg_psnr = [codec_data[codec_data['lambda'] == l]['psnr'].mean() for l in lambda_vals]
+        # Use correct column names
+        psnr_col = 'psnr_db' if 'psnr_db' in codec_data.columns else 'psnr'
+        avg_psnr = [codec_data[codec_data['lambda'] == l][psnr_col].mean() for l in lambda_vals]
         avg_bpp = [codec_data[codec_data['lambda'] == l]['bpp'].mean() for l in lambda_vals]
         
         ax1.plot(lambda_vals, avg_psnr, marker='o', linewidth=2, markersize=8)
