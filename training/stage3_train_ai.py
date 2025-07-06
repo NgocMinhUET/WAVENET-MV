@@ -76,8 +76,21 @@ def stage3_collate_fn(batch):
     
     # Add segmentation data if available
     if all_masks:
+        # Resize all masks về cùng shape (dùng shape của ảnh đầu vào)
+        # all_masks: list of [N, H, W] tensors (N: số instance, có thể 0)
+        # Nếu mask rỗng, tạo mask zeros
+        target_size = images[0].shape[1:]  # (H, W)
+        resized_masks = []
+        for masks in all_masks:
+            if masks.numel() == 0:
+                # Không có instance nào
+                resized_masks.append(torch.zeros(0, *target_size, dtype=masks.dtype))
+            else:
+                # Resize từng instance
+                masks_resized = F.interpolate(masks.unsqueeze(1), size=target_size, mode='nearest').squeeze(1)
+                resized_masks.append(masks_resized)
         result['segmentation'] = {
-            'masks': all_masks,
+            'masks': resized_masks,
             'labels': all_seg_labels if all_seg_labels else None
         }
     
