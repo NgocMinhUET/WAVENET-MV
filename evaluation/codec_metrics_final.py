@@ -296,6 +296,9 @@ class CodecEvaluatorFinal:
                     images = batch[0].to(self.device)
                 
                 try:
+                    # Đảm bảo tất cả models đều ở đúng device trước forward pass
+                    self.ensure_models_on_device()
+                    
                     # Forward pass through pipeline
                     wavelet_coeffs = self.wavelet_cnn(images)
                     mixed_features = self.adamixnet(wavelet_coeffs)
@@ -348,6 +351,29 @@ class CodecEvaluatorFinal:
             'bpp': avg_bpp,
             'num_samples': len(psnr_values)
         }
+    
+    def ensure_models_on_device(self):
+        """Đảm bảo tất cả models đều ở đúng device trước forward pass"""
+        # Kiểm tra và di chuyển từng model nếu cần
+        for model_name, model in [('wavelet', self.wavelet_cnn), 
+                                 ('adamixnet', self.adamixnet), 
+                                 ('compressor', self.compressor)]:
+            
+            # Kiểm tra xem model có ở đúng device không
+            model_on_device = True
+            for name, param in model.named_parameters():
+                if param.device != self.device:
+                    model_on_device = False
+                    break
+            
+            if not model_on_device:
+                print(f"⚠️ Moving {model_name} to {self.device}")
+                model.to(self.device)
+                
+                # Đảm bảo tất cả parameters đều được di chuyển
+                for name, param in model.named_parameters():
+                    if param.device != self.device:
+                        param.data = param.data.to(self.device)
     
     def evaluate_all_lambdas(self):
         """Evaluate tất cả lambda values"""
