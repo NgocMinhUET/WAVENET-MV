@@ -169,17 +169,58 @@ class Stage3Trainer:
             N=4
         ).to(self.device)
         
-        # 3. Load CompressorVNVC (frozen)
-        self.compressor_model = CompressorVNVC(
-            input_channels=128,
-            lambda_rd=self.args.lambda_rd
-        ).to(self.device)
-        
+        # 3. Load CompressorVNVC (frozen) - Check architecture compatibility
         if self.args.stage2_checkpoint:
             print(f"Loading Stage 2 checkpoint: {self.args.stage2_checkpoint}")
             checkpoint = torch.load(self.args.stage2_checkpoint, map_location=self.device)
-            self.adamix_model.load_state_dict(checkpoint['adamix_state_dict'])
-            self.compressor_model.load_state_dict(checkpoint['compressor_state_dict'])
+            
+            # Load AdaMixNet first
+            if 'adamix_state_dict' in checkpoint:
+                self.adamix_model.load_state_dict(checkpoint['adamix_state_dict'])
+                print("✓ Loaded adamix_state_dict successfully")
+            
+            # Check compressor architecture in checkpoint
+            if 'compressor_state_dict' in checkpoint:
+                checkpoint_keys = list(checkpoint['compressor_state_dict'].keys())
+                print(f"Compressor checkpoint keys (first 10): {checkpoint_keys[:10]}")
+                
+                # Create appropriate compressor based on checkpoint structure
+                if 'analysis_transform.conv1.weight' in checkpoint_keys:
+                    # Checkpoint has improved architecture with conv1, norm1, skip_conv
+                    print("Detected checkpoint with improved architecture (conv1/norm1)")
+                    from models.compressor_improved import ImprovedCompressorVNVC
+                    self.compressor_model = ImprovedCompressorVNVC(
+                        input_channels=128,
+                        latent_channels=192,
+                        lambda_rd=self.args.lambda_rd
+                    ).to(self.device)
+                else:
+                    # Checkpoint has simple architecture
+                    print("Detected checkpoint with simple architecture")
+                    self.compressor_model = CompressorVNVC(
+                        input_channels=128,
+                        lambda_rd=self.args.lambda_rd
+                    ).to(self.device)
+                
+                # Load state dict
+                try:
+                    self.compressor_model.load_state_dict(checkpoint['compressor_state_dict'])
+                    print("✓ Loaded compressor_state_dict successfully")
+                except Exception as e:
+                    print(f"⚠️ Failed to load compressor: {e}")
+                    print("⚠️ Using random weights for compressor")
+            else:
+                print("⚠️ No compressor_state_dict found in checkpoint")
+                self.compressor_model = CompressorVNVC(
+                    input_channels=128,
+                    lambda_rd=self.args.lambda_rd
+                ).to(self.device)
+        else:
+            print("⚠️ No Stage 2 checkpoint provided")
+            self.compressor_model = CompressorVNVC(
+                input_channels=128,
+                lambda_rd=self.args.lambda_rd
+            ).to(self.device)
         
         # Freeze compression pipeline
         for model in [self.wavelet_model, self.adamix_model, self.compressor_model]:
