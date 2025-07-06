@@ -224,10 +224,15 @@ class CodecEvaluatorFinal:
             if param.device != device:
                 param.data = param.data.to(device)
         
-        # Move all buffers
+        # Move all buffers - chỉ xử lý buffers không có dấu chấm
         for name, buffer in model.named_buffers():
             if hasattr(buffer, 'device') and buffer.device != device:
-                model.register_buffer(name, buffer.to(device))
+                # Chỉ xử lý buffers có tên đơn giản (không có dấu chấm)
+                if '.' not in name:
+                    try:
+                        model.register_buffer(name, buffer.to(device))
+                    except Exception as e:
+                        print(f"⚠️ Warning: Could not move buffer {name}: {e}")
         
         return model
     
