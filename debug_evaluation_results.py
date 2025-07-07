@@ -87,9 +87,11 @@ def debug_evaluation_results():
         print(f"Methods: {baseline_df['method'].unique()}")
         
         print("\n📈 BASELINE STATISTICS:")
+        # Use correct column names
+        psnr_col = 'psnr_db' if 'psnr_db' in baseline_df.columns else 'psnr'
         for method in baseline_df['method'].unique():
             method_data = baseline_df[baseline_df['method'] == method]
-            print(f"{method}: PSNR={method_data['psnr'].mean():.2f}dB, BPP={method_data['bpp'].mean():.3f}, MS-SSIM={method_data['ms_ssim'].mean():.4f}")
+            print(f"{method}: PSNR={method_data[psnr_col].mean():.2f}dB, BPP={method_data['bpp'].mean():.3f}, MS-SSIM={method_data['ms_ssim'].mean():.4f}")
     
     # 4. Root Cause Analysis
     print("\n🔍 ROOT CAUSE ANALYSIS:")
