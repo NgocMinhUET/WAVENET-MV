@@ -121,14 +121,15 @@ def estimate_bpp_from_features(quantized_features, image_shape):
     
     # Tính bits per feature dựa trên non-zero ratio
     # Nếu tất cả là 0, cần ít bits hơn để mã hóa
-    bits_per_feature = 2.0 + 2.0 * non_zero_ratio  # Từ 2.0 đến 4.0 bits tùy theo non-zero ratio
+    # Sử dụng công thức logarithmic để tính bits per feature
+    bits_per_feature = 1.0 + 3.0 * non_zero_ratio  # Từ 1.0 đến 4.0 bits tùy theo non-zero ratio
     
     # Tính BPP dựa trên compression ratio, số channels và bits per feature
-    estimated_bpp = compression_ratio * C * bits_per_feature
+    estimated_bpp = compression_ratio * C * bits_per_feature * non_zero_ratio
     
     # Đảm bảo BPP nằm trong khoảng hợp lý
-    # Thông thường BPP nên nằm trong khoảng 0.1-10.0 cho nén hình ảnh
-    estimated_bpp = max(0.1, min(10.0, estimated_bpp))
+    # Thông thường BPP nên nằm trong khoảng 0.05-5.0 cho nén hình ảnh
+    estimated_bpp = max(0.05, min(5.0, estimated_bpp))
     
     return estimated_bpp
 
