@@ -290,4 +290,141 @@ MIT License - see LICENSE file for details.
 
 ---
 
-**Note**: Framework được design để chạy trên GPU. CPU training không được recommend do performance issues. 
+**Note**: Framework được design để chạy trên GPU. CPU training không được recommend do performance issues.
+
+## Cài đặt
+
+1. Clone repository:
+```bash
+git clone https://github.com/NgocMinhUET/WAVENET-MV.git
+cd WAVENET-MV
+```
+
+2. Cài đặt dependencies:
+```bash
+pip install -r requirements.txt
+```
+
+3. Cài đặt dataset:
+```bash
+cd datasets
+bash setup_coco.sh
+```
+
+## Training Pipeline
+
+### Cách 1: Sử dụng script tự động
+
+Chạy toàn bộ quá trình training tự động:
+
+```bash
+# Trên Linux/Mac
+bash server_training.sh
+
+# Trên Windows
+# Sử dụng Git Bash hoặc WSL để chạy script bash
+```
+
+### Cách 2: Training từng giai đoạn
+
+#### Stage 1: Train Wavelet Transform
+
+```bash
+python training/stage1_train_wavelet.py \
+    --epochs 100 \
+    --batch_size 16 \
+    --learning_rate 1e-4 \
+    --dataset coco \
+    --data_dir datasets/COCO
+```
+
+#### Stage 2: Train Compressor
+
+```bash
+python training/stage2_train_compressor.py \
+    --epochs 100 \
+    --batch_size 8 \
+    --learning_rate 1e-4 \
+    --dataset coco \
+    --data_dir datasets/COCO \
+    --stage1_checkpoint checkpoints/stage1_wavelet_coco_best.pth \
+    --lambda_rd 256
+```
+
+#### Stage 3: Train AI Heads
+
+```bash
+python training/stage3_train_ai.py \
+    --epochs 50 \
+    --batch_size 8 \
+    --learning_rate 2e-4 \
+    --dataset coco \
+    --data_dir datasets/COCO \
+    --stage1_checkpoint checkpoints/stage1_wavelet_coco_best.pth \
+    --stage2_checkpoint checkpoints/stage2_compressor_coco_lambda256_best.pth \
+    --lambda_rd 256 \
+    --enable_detection \
+    --enable_segmentation
+```
+
+## Đánh giá
+
+### Đánh giá tự động
+
+Chạy đánh giá đầy đủ:
+
+```bash
+# Trên Linux/Mac
+bash server_evaluation.sh
+
+# Trên Windows
+# Sử dụng Git Bash hoặc WSL để chạy script bash
+```
+
+### Đánh giá thủ công
+
+```bash
+python evaluation/codec_metrics_final.py \
+    --stage1_checkpoint checkpoints/stage1_wavelet_coco_best.pth \
+    --stage2_checkpoint checkpoints/stage2_compressor_coco_lambda256_best.pth \
+    --dataset coco \
+    --data_dir datasets/COCO \
+    --split val \
+    --max_samples 100 \
+    --batch_size 4 \
+    --output_file results/wavenet_mv_lambda256_evaluation.csv
+```
+
+## Tạo báo cáo
+
+Tạo báo cáo tổng hợp từ kết quả đánh giá:
+
+```bash
+python evaluation/generate_summary_report.py \
+    --input_dir results \
+    --output_file results/wavenet_mv_comprehensive_results.csv
+```
+
+Phân tích thống kê:
+
+```bash
+python evaluation/statistical_analysis.py \
+    --input_file results/wavenet_mv_comprehensive_results.csv \
+    --output_file results/wavelet_contribution_analysis.csv \
+    --analysis_type wavelet \
+    --visualize
+```
+
+## Lưu ý quan trọng
+
+1. **Fake Data**: Tất cả dữ liệu trong các file `.json` và `.csv` ban đầu là fake data, được tạo ra để minh họa định dạng kết quả. Để có kết quả thật, cần chạy training và evaluation.
+
+2. **Checkpoints**: Cần chạy đầy đủ training pipeline để tạo ra các checkpoint thật sự trước khi đánh giá.
+
+3. **Lambda Values**: Mô hình được train với nhiều giá trị lambda khác nhau (64, 128, 256, 512, 1024, 2048) để tạo ra các điểm khác nhau trên đường cong rate-distortion.
+
+4. **Quantization**: Đã sửa các bug liên quan đến quantization collapse trong stage 2 training, đảm bảo mô hình hoạt động đúng.
+
+## Liên hệ
+
+Nếu có bất kỳ câu hỏi hoặc góp ý nào, vui lòng liên hệ qua email hoặc tạo issue trên GitHub. 

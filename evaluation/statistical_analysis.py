@@ -1,216 +1,306 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 """
-Statistical Analysis cho WAVENET-MV Evaluation Results
-Phân tích thống kê và significance testing
+Statistical Analysis
+-------------------
+Script này phân tích thống kê kết quả và đóng góp của các thành phần
 """
 
 import os
-import sys
 import argparse
 import pandas as pd
 import numpy as np
-from scipy import stats
+import json
 from pathlib import Path
+import matplotlib.pyplot as plt
+import seaborn as sns
 
-def load_data(vcm_file, baseline_file):
-    """Load evaluation data"""
-    data = {}
-    
-    # Load VCM results
-    if os.path.exists(vcm_file):
-        try:
-            import json
-            with open(vcm_file, 'r') as f:
-                data['vcm'] = json.load(f)
-        except:
-            print(f"⚠️ Could not load VCM results from {vcm_file}")
-    
-    # Load baseline comparison
-    if os.path.exists(baseline_file):
-        try:
-            data['baseline'] = pd.read_csv(baseline_file)
-        except:
-            print(f"⚠️ Could not load baseline comparison from {baseline_file}")
-    
-    return data
+def parse_args():
+    parser = argparse.ArgumentParser(description='Statistical analysis of evaluation results')
+    parser.add_argument('--input_file', type=str, required=True,
+                        help='Input CSV file with comprehensive results')
+    parser.add_argument('--output_file', type=str, required=True,
+                        help='Output file for analysis results')
+    parser.add_argument('--analysis_type', type=str, choices=['wavelet', 'lambda', 'all'], default='all',
+                        help='Type of analysis to perform')
+    parser.add_argument('--visualize', action='store_true',
+                        help='Generate visualization plots')
+    return parser.parse_args()
 
-def analyze_codec_performance(data, output_file):
-    """Analyze codec performance statistics"""
-    if 'baseline' not in data:
-        print("⚠️ Missing baseline data for analysis")
-        return
+def load_data(input_file):
+    """Load data from input file"""
+    if not os.path.exists(input_file):
+        raise FileNotFoundError(f"Input file not found: {input_file}")
     
-    baseline_data = data['baseline']
+    if input_file.endswith('.csv'):
+        df = pd.read_csv(input_file)
+    elif input_file.endswith('.json'):
+        with open(input_file, 'r') as f:
+            data = json.load(f)
+        df = pd.DataFrame(data)
+    else:
+        raise ValueError(f"Unsupported file format: {input_file}")
     
-    with open(output_file, 'w') as f:
-        f.write("WAVENET-MV Statistical Analysis Report\n")
-        f.write("=" * 50 + "\n\n")
-        
-        # Basic statistics
-        f.write("1. BASIC STATISTICS\n")
-        f.write("-" * 20 + "\n")
-        
-        for method in baseline_data['method'].unique():
-            method_data = baseline_data[baseline_data['method'] == method]
+    return df
+
+def analyze_wavelet_contribution(df):
+    """Analyze the contribution of wavelet transform"""
+    # Filter WAVENET-MV results
+    wavenet_df = df[df['method'] == 'WAVENET-MV'].copy()
+    
+    # Check if we have data for WAVENET-MV without wavelet
+    no_wavelet_df = df[df['method'] == 'WAVENET-MV (No Wavelet)'].copy() if 'WAVENET-MV (No Wavelet)' in df['method'].values else None
+    
+    results = []
+    
+    if no_wavelet_df is not None and not no_wavelet_df.empty:
+        # For each lambda value in WAVENET-MV, find the closest BPP in No Wavelet
+        for _, row in wavenet_df.iterrows():
+            lambda_val = row['lambda']
+            bpp = row['bpp']
+            psnr = row['psnr_db']
+            ms_ssim = row['ms_ssim']
+            ai_acc = row['ai_accuracy'] if 'ai_accuracy' in row else None
             
-            f.write(f"\n{method}:\n")
-            f.write(f"  PSNR: {method_data['psnr'].mean():.2f} ± {method_data['psnr'].std():.2f} dB\n")
-            f.write(f"  MS-SSIM: {method_data['ms_ssim'].mean():.4f} ± {method_data['ms_ssim'].std():.4f}\n")
-            f.write(f"  BPP: {method_data['bpp'].mean():.3f} ± {method_data['bpp'].std():.3f}\n")
-        
-        # Performance ranking
-        f.write("\n\n2. PERFORMANCE RANKING\n")
-        f.write("-" * 20 + "\n")
-        
-        # PSNR ranking
-        psnr_ranking = baseline_data.groupby('method')['psnr'].mean().sort_values(ascending=False)
-        f.write("\nPSNR Ranking (dB):\n")
-        for i, (method, psnr) in enumerate(psnr_ranking.items(), 1):
-            f.write(f"  {i}. {method}: {psnr:.2f}\n")
-        
-        # MS-SSIM ranking
-        mssim_ranking = baseline_data.groupby('method')['ms_ssim'].mean().sort_values(ascending=False)
-        f.write("\nMS-SSIM Ranking:\n")
-        for i, (method, mssim) in enumerate(mssim_ranking.items(), 1):
-            f.write(f"  {i}. {method}: {mssim:.4f}\n")
-        
-        # BPP ranking (lower is better)
-        bpp_ranking = baseline_data.groupby('method')['bpp'].mean().sort_values()
-        f.write("\nBPP Ranking (bits/pixel, lower is better):\n")
-        for i, (method, bpp) in enumerate(bpp_ranking.items(), 1):
-            f.write(f"  {i}. {method}: {bpp:.3f}\n")
-
-def analyze_task_performance(data, output_file):
-    """Analyze task performance statistics"""
-    if 'vcm' not in data:
-        print("⚠️ Missing VCM data for task analysis")
-        return
-    
-    vcm_data = data['vcm']
-    
-    with open(output_file, 'a') as f:
-        f.write("\n\n3. TASK PERFORMANCE ANALYSIS\n")
-        f.write("-" * 30 + "\n")
-        
-        # Detection performance
-        if 'detection' in vcm_data:
-            det_data = vcm_data['detection']
-            f.write("\nObject Detection:\n")
-            if 'mAP' in det_data:
-                f.write(f"  mAP: {det_data['mAP']:.4f}\n")
-            if 'precision' in det_data:
-                f.write(f"  Precision: {det_data['precision']:.4f}\n")
-            if 'recall' in det_data:
-                f.write(f"  Recall: {det_data['recall']:.4f}\n")
-        
-        # Segmentation performance
-        if 'segmentation' in vcm_data:
-            seg_data = vcm_data['segmentation']
-            f.write("\nSemantic Segmentation:\n")
-            if 'mIoU' in seg_data:
-                f.write(f"  mIoU: {seg_data['mIoU']:.4f}\n")
-            if 'accuracy' in seg_data:
-                f.write(f"  Accuracy: {seg_data['accuracy']:.4f}\n")
-
-def perform_significance_tests(data, output_file):
-    """Perform statistical significance tests"""
-    if 'baseline' not in data:
-        print("⚠️ Missing baseline data for significance tests")
-        return
-    
-    baseline_data = data['baseline']
-    
-    with open(output_file, 'a') as f:
-        f.write("\n\n4. STATISTICAL SIGNIFICANCE TESTS\n")
-        f.write("-" * 35 + "\n")
-        
-        methods = baseline_data['method'].unique()
-        if len(methods) < 2:
-            f.write("\nInsufficient methods for significance testing.\n")
-            return
-        
-        # PSNR significance tests
-        f.write("\nPSNR Significance Tests (t-test):\n")
-        for i, method1 in enumerate(methods):
-            for method2 in methods[i+1:]:
-                data1 = baseline_data[baseline_data['method'] == method1]['psnr']
-                data2 = baseline_data[baseline_data['method'] == method2]['psnr']
+            # Find the closest BPP in No Wavelet
+            if not no_wavelet_df.empty:
+                no_wavelet_df['bpp_diff'] = abs(no_wavelet_df['bpp'] - bpp)
+                closest_row = no_wavelet_df.loc[no_wavelet_df['bpp_diff'].idxmin()]
                 
-                if len(data1) > 0 and len(data2) > 0:
-                    t_stat, p_value = stats.ttest_ind(data1, data2)
-                    f.write(f"  {method1} vs {method2}: t={t_stat:.3f}, p={p_value:.4f}")
-                    if p_value < 0.05:
-                        f.write(" (significant)")
-                    f.write("\n")
-        
-        # MS-SSIM significance tests
-        f.write("\nMS-SSIM Significance Tests (t-test):\n")
-        for i, method1 in enumerate(methods):
-            for method2 in methods[i+1:]:
-                data1 = baseline_data[baseline_data['method'] == method1]['ms_ssim']
-                data2 = baseline_data[baseline_data['method'] == method2]['ms_ssim']
+                # Calculate improvements
+                psnr_gain = psnr - closest_row['psnr_db']
+                ms_ssim_gain = ms_ssim - closest_row['ms_ssim']
+                ai_gain = (ai_acc - closest_row['ai_accuracy']) if ai_acc is not None and 'ai_accuracy' in closest_row else None
                 
-                if len(data1) > 0 and len(data2) > 0:
-                    t_stat, p_value = stats.ttest_ind(data1, data2)
-                    f.write(f"  {method1} vs {method2}: t={t_stat:.3f}, p={p_value:.4f}")
-                    if p_value < 0.05:
-                        f.write(" (significant)")
-                    f.write("\n")
+                result = {
+                    'lambda': lambda_val,
+                    'bpp': bpp,
+                    'psnr_gain': round(psnr_gain, 2),
+                    'ms_ssim_gain': round(ms_ssim_gain, 4),
+                    'psnr_gain_percent': round((psnr_gain / closest_row['psnr_db']) * 100, 1),
+                    'ms_ssim_gain_percent': round((ms_ssim_gain / closest_row['ms_ssim']) * 100, 1)
+                }
+                
+                if ai_gain is not None:
+                    result['ai_gain'] = round(ai_gain, 3)
+                    result['ai_gain_percent'] = round((ai_gain / closest_row['ai_accuracy']) * 100, 1)
+                
+                results.append(result)
+    else:
+        # If we don't have No Wavelet data, just report the performance
+        for _, row in wavenet_df.iterrows():
+            lambda_val = row['lambda']
+            bpp = row['bpp']
+            psnr = row['psnr_db']
+            ms_ssim = row['ms_ssim']
+            ai_acc = row['ai_accuracy'] if 'ai_accuracy' in row else None
+            
+            result = {
+                'lambda': lambda_val,
+                'bpp': bpp,
+                'psnr': psnr,
+                'ms_ssim': ms_ssim
+            }
+            
+            if ai_acc is not None:
+                result['ai_accuracy'] = ai_acc
+            
+            results.append(result)
+    
+    # Calculate average gains
+    if results and 'psnr_gain' in results[0]:
+        avg_psnr_gain = sum(r['psnr_gain'] for r in results) / len(results)
+        avg_ms_ssim_gain = sum(r['ms_ssim_gain'] for r in results) / len(results)
+        avg_psnr_percent = sum(r['psnr_gain_percent'] for r in results) / len(results)
+        avg_ms_ssim_percent = sum(r['ms_ssim_gain_percent'] for r in results) / len(results)
+        
+        summary = {
+            'avg_psnr_gain': round(avg_psnr_gain, 2),
+            'avg_ms_ssim_gain': round(avg_ms_ssim_gain, 4),
+            'avg_psnr_gain_percent': round(avg_psnr_percent, 1),
+            'avg_ms_ssim_gain_percent': round(avg_ms_ssim_percent, 1)
+        }
+        
+        if 'ai_gain' in results[0]:
+            avg_ai_gain = sum(r['ai_gain'] for r in results) / len(results)
+            avg_ai_percent = sum(r['ai_gain_percent'] for r in results) / len(results)
+            summary['avg_ai_gain'] = round(avg_ai_gain, 3)
+            summary['avg_ai_gain_percent'] = round(avg_ai_percent, 1)
+        
+        results.append(summary)
+    
+    return results
 
-def generate_summary_statistics(data, output_file):
-    """Generate summary statistics"""
-    with open(output_file, 'a') as f:
-        f.write("\n\n5. SUMMARY AND CONCLUSIONS\n")
-        f.write("-" * 30 + "\n")
+def analyze_lambda_impact(df):
+    """Analyze the impact of lambda value on rate-distortion performance"""
+    # Filter WAVENET-MV results
+    wavenet_df = df[df['method'] == 'WAVENET-MV'].copy()
+    
+    if wavenet_df.empty:
+        return []
+    
+    # Sort by lambda value
+    wavenet_df = wavenet_df.sort_values('lambda')
+    
+    results = []
+    
+    # Calculate BD-Rate and BD-PSNR between consecutive lambda values
+    prev_row = None
+    for _, row in wavenet_df.iterrows():
+        lambda_val = row['lambda']
+        bpp = row['bpp']
+        psnr = row['psnr_db']
+        ms_ssim = row['ms_ssim']
         
-        if 'baseline' in data:
-            baseline_data = data['baseline']
-            
-            # Find best performing method for each metric
-            best_psnr = baseline_data.loc[baseline_data['psnr'].idxmax()]
-            best_mssim = baseline_data.loc[baseline_data['ms_ssim'].idxmax()]
-            best_bpp = baseline_data.loc[baseline_data['bpp'].idxmin()]
-            
-            f.write(f"\nBest PSNR: {best_psnr['method']} ({best_psnr['psnr']:.2f} dB)\n")
-            f.write(f"Best MS-SSIM: {best_mssim['method']} ({best_mssim['ms_ssim']:.4f})\n")
-            f.write(f"Best Compression: {best_bpp['method']} ({best_bpp['bpp']:.3f} BPP)\n")
+        result = {
+            'lambda': lambda_val,
+            'bpp': bpp,
+            'psnr_db': psnr,
+            'ms_ssim': ms_ssim
+        }
         
-        f.write("\nKey Findings:\n")
-        f.write("- WAVENET-MV achieves competitive compression performance\n")
-        f.write("- Task performance on compressed features is maintained\n")
-        f.write("- Lambda parameter effectively controls rate-distortion trade-off\n")
+        if prev_row is not None:
+            # Calculate rate change
+            bpp_change = bpp - prev_row['bpp']
+            bpp_change_percent = (bpp_change / prev_row['bpp']) * 100
+            
+            # Calculate distortion change
+            psnr_change = psnr - prev_row['psnr_db']
+            ms_ssim_change = ms_ssim - prev_row['ms_ssim']
+            
+            # Calculate rate-distortion efficiency
+            rd_efficiency_psnr = psnr_change / bpp_change if bpp_change != 0 else float('inf')
+            rd_efficiency_ms_ssim = ms_ssim_change / bpp_change if bpp_change != 0 else float('inf')
+            
+            result['bpp_change'] = round(bpp_change, 2)
+            result['bpp_change_percent'] = round(bpp_change_percent, 1)
+            result['psnr_change'] = round(psnr_change, 2)
+            result['ms_ssim_change'] = round(ms_ssim_change, 4)
+            result['rd_efficiency_psnr'] = round(rd_efficiency_psnr, 2)
+            result['rd_efficiency_ms_ssim'] = round(rd_efficiency_ms_ssim, 4)
+        
+        results.append(result)
+        prev_row = row
+    
+    return results
+
+def visualize_results(df, analysis_type, output_dir):
+    """Generate visualization plots for the results"""
+    os.makedirs(output_dir, exist_ok=True)
+    
+    # Set style
+    sns.set(style="whitegrid")
+    plt.rcParams.update({'font.size': 12})
+    
+    if analysis_type in ['wavelet', 'all']:
+        # Filter WAVENET-MV results
+        wavenet_df = df[df['method'] == 'WAVENET-MV'].copy()
+        no_wavelet_df = df[df['method'] == 'WAVENET-MV (No Wavelet)'].copy() if 'WAVENET-MV (No Wavelet)' in df['method'].values else None
+        
+        if not wavenet_df.empty:
+            # Rate-distortion curve
+            plt.figure(figsize=(10, 6))
+            plt.plot(wavenet_df['bpp'], wavenet_df['psnr_db'], 'o-', label='WAVENET-MV', linewidth=2)
+            
+            if no_wavelet_df is not None and not no_wavelet_df.empty:
+                plt.plot(no_wavelet_df['bpp'], no_wavelet_df['psnr_db'], 's--', label='WAVENET-MV (No Wavelet)', linewidth=2)
+            
+            plt.xlabel('Bits per Pixel (BPP)')
+            plt.ylabel('PSNR (dB)')
+            plt.title('Rate-Distortion Performance')
+            plt.legend()
+            plt.grid(True)
+            plt.savefig(os.path.join(output_dir, 'wavelet_rd_curve.png'), dpi=300, bbox_inches='tight')
+            plt.close()
+            
+            # MS-SSIM curve
+            plt.figure(figsize=(10, 6))
+            plt.plot(wavenet_df['bpp'], wavenet_df['ms_ssim'], 'o-', label='WAVENET-MV', linewidth=2)
+            
+            if no_wavelet_df is not None and not no_wavelet_df.empty:
+                plt.plot(no_wavelet_df['bpp'], no_wavelet_df['ms_ssim'], 's--', label='WAVENET-MV (No Wavelet)', linewidth=2)
+            
+            plt.xlabel('Bits per Pixel (BPP)')
+            plt.ylabel('MS-SSIM')
+            plt.title('Rate-MS-SSIM Performance')
+            plt.legend()
+            plt.grid(True)
+            plt.savefig(os.path.join(output_dir, 'wavelet_ms_ssim_curve.png'), dpi=300, bbox_inches='tight')
+            plt.close()
+    
+    if analysis_type in ['lambda', 'all']:
+        # Filter WAVENET-MV results
+        wavenet_df = df[df['method'] == 'WAVENET-MV'].copy()
+        
+        if not wavenet_df.empty:
+            # Lambda vs. BPP
+            plt.figure(figsize=(10, 6))
+            plt.plot(wavenet_df['lambda'], wavenet_df['bpp'], 'o-', linewidth=2)
+            plt.xlabel('Lambda Value')
+            plt.ylabel('Bits per Pixel (BPP)')
+            plt.title('Impact of Lambda on Bit Rate')
+            plt.grid(True)
+            plt.savefig(os.path.join(output_dir, 'lambda_vs_bpp.png'), dpi=300, bbox_inches='tight')
+            plt.close()
+            
+            # Lambda vs. PSNR
+            plt.figure(figsize=(10, 6))
+            plt.plot(wavenet_df['lambda'], wavenet_df['psnr_db'], 'o-', linewidth=2)
+            plt.xlabel('Lambda Value')
+            plt.ylabel('PSNR (dB)')
+            plt.title('Impact of Lambda on PSNR')
+            plt.grid(True)
+            plt.savefig(os.path.join(output_dir, 'lambda_vs_psnr.png'), dpi=300, bbox_inches='tight')
+            plt.close()
+
+def save_results(results, output_file):
+    """Save analysis results to a file"""
+    # Create output directory if it doesn't exist
+    os.makedirs(os.path.dirname(output_file), exist_ok=True)
+    
+    if output_file.endswith('.csv'):
+        df = pd.DataFrame(results)
+        df.to_csv(output_file, index=False)
+    elif output_file.endswith('.json'):
+        with open(output_file, 'w') as f:
+            json.dump(results, f, indent=2)
+    else:
+        # Default to CSV
+        df = pd.DataFrame(results)
+        df.to_csv(output_file, index=False)
+    
+    print(f"✅ Analysis results saved to {output_file}")
 
 def main():
-    parser = argparse.ArgumentParser(description="Statistical Analysis for WAVENET-MV")
-    parser.add_argument("--results_file", default="results/vcm_evaluation_results.csv", 
-                       help="VCM evaluation results file")
-    parser.add_argument("--baseline_file", default="results/baseline_comparison.csv", 
-                       help="Baseline comparison results file")
-    parser.add_argument("--output_file", default="results/statistical_analysis.txt", 
-                       help="Output analysis file")
+    args = parse_args()
     
-    args = parser.parse_args()
+    print(f"🔍 Loading data from {args.input_file}...")
+    df = load_data(args.input_file)
     
-    print("📊 Performing Statistical Analysis for WAVENET-MV")
-    print(f"📁 VCM results: {args.results_file}")
-    print(f"📁 Baseline results: {args.baseline_file}")
-    print(f"📄 Output: {args.output_file}")
+    results = []
     
-    # Load data
-    data = load_data(args.results_file, args.baseline_file)
+    if args.analysis_type in ['wavelet', 'all']:
+        print("🔄 Analyzing wavelet contribution...")
+        wavelet_results = analyze_wavelet_contribution(df)
+        if wavelet_results:
+            results = wavelet_results
     
-    # Perform analyses
-    analyze_codec_performance(data, args.output_file)
-    analyze_task_performance(data, args.output_file)
-    perform_significance_tests(data, args.output_file)
-    generate_summary_statistics(data, args.output_file)
+    if args.analysis_type in ['lambda', 'all']:
+        print("🔄 Analyzing lambda impact...")
+        lambda_results = analyze_lambda_impact(df)
+        if lambda_results and not results:
+            results = lambda_results
     
-    print(f"\n🎉 Statistical analysis completed: {args.output_file}")
-    print("📋 Analysis includes:")
-    print("  - Basic statistics and performance ranking")
-    print("  - Task performance analysis")
-    print("  - Statistical significance tests")
-    print("  - Summary and conclusions")
+    print(f"🔄 Saving results to {args.output_file}...")
+    save_results(results, args.output_file)
+    
+    if args.visualize:
+        output_dir = os.path.dirname(args.output_file)
+        print("🔄 Generating visualization plots...")
+        visualize_results(df, args.analysis_type, output_dir)
+    
+    print("✅ Statistical analysis completed!")
 
 if __name__ == "__main__":
     main() 

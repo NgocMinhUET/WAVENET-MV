@@ -1,241 +1,180 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 """
-Generate Summary Report cho WAVENET-MV IEEE Paper
-Tạo báo cáo tổng hợp với tất cả kết quả evaluation
+Generate Summary Report
+-----------------------
+Script này tổng hợp kết quả từ các file đánh giá riêng lẻ thành một báo cáo tổng hợp
 """
 
 import os
-import sys
 import argparse
 import pandas as pd
+import glob
 import json
 from pathlib import Path
-from datetime import datetime
 
-def load_all_results(results_dir):
-    """Load tất cả results từ results directory"""
-    results = {}
+def parse_args():
+    parser = argparse.ArgumentParser(description='Generate summary report from evaluation results')
+    parser.add_argument('--input_dir', type=str, default='results', 
+                        help='Directory containing evaluation result files')
+    parser.add_argument('--output_file', type=str, default='results/wavenet_mv_comprehensive_results.csv',
+                        help='Output file for the summary report')
+    parser.add_argument('--format', type=str, choices=['csv', 'json'], default='csv',
+                        help='Output format (csv or json)')
+    return parser.parse_args()
+
+def find_evaluation_files(input_dir):
+    """Find all evaluation result files in the input directory"""
+    codec_files = glob.glob(os.path.join(input_dir, '*codec_metrics.csv'))
+    ai_files = glob.glob(os.path.join(input_dir, '*ai_metrics.csv'))
     
-    # Load VCM results
-    vcm_file = os.path.join(results_dir, "vcm_results.json")
-    if os.path.exists(vcm_file):
-        try:
-            with open(vcm_file, 'r') as f:
-                results['vcm'] = json.load(f)
-        except:
-            print(f"⚠️ Could not load VCM results from {vcm_file}")
+    # Group files by lambda value
+    lambda_groups = {}
     
-    # Load codec metrics
-    codec_file = os.path.join(results_dir, "codec_metrics_final.csv")
-    if os.path.exists(codec_file):
-        try:
-            results['codec'] = pd.read_csv(codec_file)
-        except:
-            print(f"⚠️ Could not load codec metrics from {codec_file}")
+    for file in codec_files:
+        # Extract lambda value from filename
+        filename = os.path.basename(file)
+        if 'lambda' in filename:
+            lambda_value = filename.split('lambda')[1].split('_')[0]
+            if lambda_value not in lambda_groups:
+                lambda_groups[lambda_value] = {'codec': None, 'ai': None}
+            lambda_groups[lambda_value]['codec'] = file
     
-    # Load baseline comparison
-    baseline_file = os.path.join(results_dir, "baseline_comparison.csv")
+    for file in ai_files:
+        # Extract lambda value from filename
+        filename = os.path.basename(file)
+        if 'lambda' in filename:
+            lambda_value = filename.split('lambda')[1].split('_')[0]
+            if lambda_value not in lambda_groups:
+                lambda_groups[lambda_value] = {'codec': None, 'ai': None}
+            lambda_groups[lambda_value]['ai'] = file
+    
+    return lambda_groups
+
+def merge_results(lambda_groups):
+    """Merge codec and AI metrics for each lambda value"""
+    results = []
+    
+    for lambda_value, files in lambda_groups.items():
+        codec_file = files.get('codec')
+        ai_file = files.get('ai')
+        
+        if codec_file and os.path.exists(codec_file):
+            try:
+                codec_df = pd.read_csv(codec_file)
+                # Take average of all rows if multiple rows exist
+                codec_metrics = codec_df.mean(numeric_only=True).to_dict()
+                
+                # Basic metrics
+                result = {
+                    'method': 'WAVENET-MV',
+                    'lambda': int(lambda_value),
+                    'psnr_db': round(codec_metrics.get('psnr', 0.0), 2),
+                    'ms_ssim': round(codec_metrics.get('ms_ssim', 0.0), 4),
+                    'bpp': round(codec_metrics.get('bpp', 0.0), 2)
+                }
+                
+                # Add AI metrics if available
+                if ai_file and os.path.exists(ai_file):
+                    try:
+                        ai_df = pd.read_csv(ai_file)
+                        ai_metrics = ai_df.mean(numeric_only=True).to_dict()
+                        
+                        result['detection_map'] = round(ai_metrics.get('detection_map', 0.0), 3)
+                        result['segmentation_miou'] = round(ai_metrics.get('segmentation_miou', 0.0), 3)
+                        result['ai_accuracy'] = round((result['detection_map'] + result['segmentation_miou']) / 2, 3)
+                    except Exception as e:
+                        print(f"Warning: Could not process AI metrics file {ai_file}: {e}")
+                
+                results.append(result)
+            except Exception as e:
+                print(f"Warning: Could not process codec metrics file {codec_file}: {e}")
+    
+    # Sort results by lambda value
+    results.sort(key=lambda x: x['lambda'])
+    return results
+
+def add_baseline_results(results, input_dir):
+    """Add baseline results if available"""
+    baseline_file = os.path.join(input_dir, 'baseline_comparison.csv')
     if os.path.exists(baseline_file):
         try:
-            results['baseline'] = pd.read_csv(baseline_file)
-        except:
-            print(f"⚠️ Could not load baseline comparison from {baseline_file}")
-    
-    # Load statistical analysis
-    stats_file = os.path.join(results_dir, "statistical_analysis.txt")
-    if os.path.exists(stats_file):
-        try:
-            with open(stats_file, 'r') as f:
-                results['statistics'] = f.read()
-        except:
-            print(f"⚠️ Could not load statistical analysis from {stats_file}")
+            baseline_df = pd.read_csv(baseline_file)
+            for _, row in baseline_df.iterrows():
+                baseline_result = {
+                    'method': row['method'],
+                    'lambda': None,
+                    'psnr_db': round(row['psnr'], 2),
+                    'ms_ssim': round(row['ms_ssim'], 4),
+                    'bpp': round(row['bpp'], 2),
+                    'ai_accuracy': round(row['ai_accuracy'], 3) if 'ai_accuracy' in row else None
+                }
+                
+                # Add quality parameter if available
+                if 'quality' in row:
+                    baseline_result['quality'] = row['quality']
+                
+                results.append(baseline_result)
+        except Exception as e:
+            print(f"Warning: Could not process baseline file {baseline_file}: {e}")
     
     return results
 
-def generate_executive_summary(results, output_file):
-    """Generate executive summary"""
-    with open(output_file, 'w') as f:
-        f.write("# WAVENET-MV Evaluation Summary Report\n")
-        f.write(f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
-        
-        f.write("## Executive Summary\n\n")
-        f.write("WAVENET-MV is a novel neural video coding framework designed for machine vision tasks. ")
-        f.write("This report summarizes the comprehensive evaluation of the framework's performance ")
-        f.write("in terms of compression efficiency and downstream task accuracy.\n\n")
-        
-        # Key metrics summary
-        f.write("### Key Performance Metrics\n\n")
-        
-        if 'codec' in results and not results['codec'].empty:
-            codec_data = results['codec']
-            best_psnr = codec_data['psnr_db'].max()
-            best_mssim = codec_data['ms_ssim'].max()
-            avg_bpp = codec_data['bpp'].mean()
-            
-            f.write(f"- **Best PSNR**: {best_psnr:.2f} dB\n")
-            f.write(f"- **Best MS-SSIM**: {best_mssim:.4f}\n")
-            f.write(f"- **Average BPP**: {avg_bpp:.3f} bits/pixel\n\n")
-        
-        if 'vcm' in results:
-            vcm_data = results['vcm']
-            f.write("### Task Performance\n\n")
-            
-            if 'detection' in vcm_data and 'mAP' in vcm_data['detection']:
-                f.write(f"- **Object Detection mAP**: {vcm_data['detection']['mAP']:.4f}\n")
-            
-            if 'segmentation' in vcm_data and 'mIoU' in vcm_data['segmentation']:
-                f.write(f"- **Segmentation mIoU**: {vcm_data['segmentation']['mIoU']:.4f}\n")
-            
-            f.write("\n")
-
-def generate_detailed_results(results, output_file):
-    """Generate detailed results section"""
-    with open(output_file, 'a') as f:
-        f.write("## Detailed Results\n\n")
-        
-        # Codec Performance
-        f.write("### 1. Codec Performance Analysis\n\n")
-        
-        if 'codec' in results and not results['codec'].empty:
-            codec_data = results['codec']
-            
-            f.write("#### Rate-Distortion Performance\n\n")
-            f.write("| Lambda | PSNR (dB) | MS-SSIM | BPP |\n")
-            f.write("|--------|-----------|---------|-----|\n")
-            
-            for lambda_val in sorted(codec_data['lambda'].unique()):
-                lambda_data = codec_data[codec_data['lambda'] == lambda_val]
-                avg_psnr = lambda_data['psnr_db'].mean()
-                avg_mssim = lambda_data['ms_ssim'].mean()
-                avg_bpp = lambda_data['bpp'].mean()
-                
-                f.write(f"| {lambda_val} | {avg_psnr:.2f} | {avg_mssim:.4f} | {avg_bpp:.3f} |\n")
-            
-            f.write("\n")
-        
-        # Baseline Comparison
-        f.write("### 2. Baseline Comparison\n\n")
-        
-        if 'baseline' in results and not results['baseline'].empty:
-            baseline_data = results['baseline']
-            
-            f.write("#### Comparison with Traditional Codecs\n\n")
-            f.write("| Method | PSNR (dB) | MS-SSIM | BPP |\n")
-            f.write("|--------|-----------|---------|-----|\n")
-            
-            for method in baseline_data['method'].unique():
-                method_data = baseline_data[baseline_data['method'] == method]
-                avg_psnr = method_data['psnr_db'].mean()
-                avg_mssim = method_data['ms_ssim'].mean()
-                avg_bpp = method_data['bpp'].mean()
-                
-                f.write(f"| {method} | {avg_psnr:.2f} | {avg_mssim:.4f} | {avg_bpp:.3f} |\n")
-            
-            f.write("\n")
-        
-        # Task Performance
-        f.write("### 3. Task Performance on Compressed Features\n\n")
-        
-        if 'vcm' in results:
-            vcm_data = results['vcm']
-            
-            if 'detection' in vcm_data:
-                det_data = vcm_data['detection']
-                f.write("#### Object Detection Results\n\n")
-                for key, value in det_data.items():
-                    if isinstance(value, (int, float)):
-                        f.write(f"- **{key}**: {value:.4f}\n")
-                    else:
-                        f.write(f"- **{key}**: {value}\n")
-                f.write("\n")
-            
-            if 'segmentation' in vcm_data:
-                seg_data = vcm_data['segmentation']
-                f.write("#### Semantic Segmentation Results\n\n")
-                for key, value in seg_data.items():
-                    if isinstance(value, (int, float)):
-                        f.write(f"- **{key}**: {value:.4f}\n")
-                    else:
-                        f.write(f"- **{key}**: {value}\n")
-                f.write("\n")
-
-def generate_statistical_analysis(results, output_file):
-    """Generate statistical analysis section"""
-    with open(output_file, 'a') as f:
-        f.write("## Statistical Analysis\n\n")
-        
-        if 'statistics' in results:
-            f.write("### Detailed Statistical Analysis\n\n")
-            f.write("```\n")
-            f.write(results['statistics'])
-            f.write("\n```\n\n")
-        else:
-            f.write("Statistical analysis results not available.\n\n")
-
-def generate_conclusions(results, output_file):
-    """Generate conclusions and future work"""
-    with open(output_file, 'a') as f:
-        f.write("## Conclusions and Future Work\n\n")
-        
-        f.write("### Key Findings\n\n")
-        f.write("1. **Compression Efficiency**: WAVENET-MV achieves competitive compression ratios ")
-        f.write("while maintaining high visual quality as measured by PSNR and MS-SSIM.\n\n")
-        
-        f.write("2. **Task Performance**: The framework successfully preserves task-relevant ")
-        f.write("information in compressed features, enabling accurate object detection ")
-        f.write("and semantic segmentation.\n\n")
-        
-        f.write("3. **Rate-Distortion Trade-off**: The lambda parameter effectively controls ")
-        f.write("the trade-off between compression rate and reconstruction quality.\n\n")
-        
-        f.write("### Technical Contributions\n\n")
-        f.write("- **Wavelet-based Analysis**: Novel wavelet transform CNN for efficient feature extraction\n")
-        f.write("- **AdaMixNet Architecture**: Adaptive mixing network for feature refinement\n")
-        f.write("- **End-to-End Training**: Joint optimization of compression and task performance\n")
-        f.write("- **VCM Framework**: Complete pipeline for video coding for machine vision\n\n")
-        
-        f.write("### Future Work\n\n")
-        f.write("1. **Scalability**: Extend to higher resolution videos and real-time applications\n")
-        f.write("2. **Multi-task Learning**: Explore joint training for multiple downstream tasks\n")
-        f.write("3. **Temporal Modeling**: Incorporate temporal dependencies for video compression\n")
-        f.write("4. **Hardware Optimization**: Optimize for deployment on edge devices\n\n")
-        
-        f.write("### Impact and Applications\n\n")
-        f.write("WAVENET-MV has significant potential for applications requiring efficient ")
-        f.write("video compression while maintaining machine vision task performance:\n\n")
-        f.write("- **Surveillance Systems**: Bandwidth-efficient video monitoring\n")
-        f.write("- **Autonomous Vehicles**: Real-time video processing for navigation\n")
-        f.write("- **IoT Devices**: Resource-constrained video analysis\n")
-        f.write("- **Cloud Computing**: Reduced storage and transmission costs\n\n")
+def save_results(results, output_file, format='csv'):
+    """Save results to a file in the specified format"""
+    # Create output directory if it doesn't exist
+    os.makedirs(os.path.dirname(output_file), exist_ok=True)
+    
+    if format == 'csv':
+        df = pd.DataFrame(results)
+        df.to_csv(output_file, index=False)
+        print(f"✅ Results saved to {output_file}")
+    elif format == 'json':
+        with open(output_file, 'w') as f:
+            json.dump(results, f, indent=2)
+        print(f"✅ Results saved to {output_file}")
+    else:
+        print(f"❌ Unsupported format: {format}")
 
 def main():
-    parser = argparse.ArgumentParser(description="Generate Summary Report for WAVENET-MV")
-    parser.add_argument("--results_dir", default="results", help="Results directory")
-    parser.add_argument("--output_file", default="results/evaluation_summary.md", 
-                       help="Output summary report file")
-    parser.add_argument("--paper_format", default="ieee", help="Paper format (ieee)")
+    args = parse_args()
     
-    args = parser.parse_args()
+    print(f"🔍 Looking for evaluation files in {args.input_dir}...")
+    lambda_groups = find_evaluation_files(args.input_dir)
     
-    print("📋 Generating Summary Report for WAVENET-MV")
-    print(f"📁 Results from: {args.results_dir}")
-    print(f"📄 Report to: {args.output_file}")
+    if not lambda_groups:
+        print("❌ No evaluation files found!")
+        return
     
-    # Load all results
-    results = load_all_results(args.results_dir)
+    print(f"✅ Found evaluation files for {len(lambda_groups)} lambda values")
     
-    # Generate report sections
-    generate_executive_summary(results, args.output_file)
-    generate_detailed_results(results, args.output_file)
-    generate_statistical_analysis(results, args.output_file)
-    generate_conclusions(results, args.output_file)
+    print("🔄 Merging results...")
+    results = merge_results(lambda_groups)
     
-    print(f"\n🎉 Summary report generated: {args.output_file}")
-    print("📋 Report includes:")
-    print("  - Executive summary with key metrics")
-    print("  - Detailed results analysis")
-    print("  - Statistical analysis")
-    print("  - Conclusions and future work")
+    print("🔄 Adding baseline results if available...")
+    results = add_baseline_results(results, args.input_dir)
+    
+    print(f"🔄 Saving results to {args.output_file}...")
+    
+    # Determine output format from file extension if not specified
+    format = args.format
+    if format == 'csv' and args.output_file.endswith('.json'):
+        format = 'json'
+    elif format == 'json' and args.output_file.endswith('.csv'):
+        format = 'csv'
+    
+    save_results(results, args.output_file, format)
+    
+    # Also save in the other format
+    if format == 'csv':
+        json_output = os.path.splitext(args.output_file)[0] + '.json'
+        save_results(results, json_output, 'json')
+    else:
+        csv_output = os.path.splitext(args.output_file)[0] + '.csv'
+        save_results(results, csv_output, 'csv')
+    
+    print("✅ Summary report generation completed!")
 
 if __name__ == "__main__":
     main() 
