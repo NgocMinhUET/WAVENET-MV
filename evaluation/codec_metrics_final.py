@@ -117,7 +117,7 @@ def estimate_bpp_from_features(quantized_features, image_shape):
     
     # Đếm số lượng phần tử khác 0 trong quantized features
     non_zero_elements = torch.count_nonzero(quantized_features)
-    non_zero_ratio = non_zero_elements / (B * C * H_feat * W_feat)
+    non_zero_ratio = non_zero_elements.item() / (B * C * H_feat * W_feat)
     
     # Tính bits per feature dựa trên non-zero ratio
     # Nếu tất cả là 0, cần ít bits hơn để mã hóa
@@ -131,7 +131,8 @@ def estimate_bpp_from_features(quantized_features, image_shape):
     # Thông thường BPP nên nằm trong khoảng 0.05-5.0 cho nén hình ảnh
     estimated_bpp = max(0.05, min(5.0, estimated_bpp))
     
-    return estimated_bpp
+    # Trả về giá trị Python float, không phải tensor
+    return float(estimated_bpp)
 
 
 class CodecEvaluatorFinal:
@@ -382,150 +383,110 @@ class CodecEvaluatorFinal:
         print(f"✓ Dataset loaded: {len(dataset)} images")
         
     def evaluate_lambda(self, lambda_value):
-        """Evaluate metrics for specific lambda value"""
+        """Evaluate mô hình với một lambda value cụ thể"""
         print(f"\nEvaluating λ = {lambda_value}")
         
-        # Set compressor lambda (nếu có method set_lambda)
-        if hasattr(self.compressor, 'set_lambda'):
-            self.compressor.set_lambda(lambda_value)
-        else:
-            # Nếu không có, tạo compressor mới với lambda mới
-            from models.compressor_vnvc import CompressorVNVC
-            self.compressor = CompressorVNVC(
-                input_channels=128,
-                latent_channels=192,
-                lambda_rd=lambda_value
-            ).to(self.device)
-            self.compressor.eval()
-        
-        # Đảm bảo tất cả models đều ở đúng device TRƯỚC KHI bắt đầu evaluation
-        self.ensure_models_on_device()
-        
-        # Kiểm tra device consistency trước khi bắt đầu
+        # Check device consistency
         self.check_device_consistency()
         
-        # Enable gradient checkpointing để giảm memory usage
-        if hasattr(self.wavelet_cnn, 'gradient_checkpointing_enable'):
-            self.wavelet_cnn.gradient_checkpointing_enable()
-        if hasattr(self.adamixnet, 'gradient_checkpointing_enable'):
-            self.adamixnet.gradient_checkpointing_enable()
-        if hasattr(self.compressor, 'gradient_checkpointing_enable'):
-            self.compressor.gradient_checkpointing_enable()
-        
-        # Metrics accumulation
+        # Metrics
         psnr_values = []
         ms_ssim_values = []
         bpp_values = []
         
-        with torch.no_grad():
-            for batch_idx, batch in enumerate(tqdm(self.dataloader, desc=f'λ={lambda_value}')):
-                # Get images và đảm bảo ở đúng device
-                if isinstance(batch, dict):
-                    images = batch['image']
-                else:
-                    images = batch[0]
-                
-                # Đảm bảo images ở đúng device và dtype
-                images = images.to(self.device, dtype=torch.float32, non_blocking=True)
-                
-                # Kiểm tra GPU memory usage mỗi 100 batches
-                if batch_idx % 100 == 0 and hasattr(torch.cuda, 'memory_allocated'):
-                    memory_allocated = torch.cuda.memory_allocated() / 1024**3  # GB
-                    memory_reserved = torch.cuda.memory_reserved() / 1024**3  # GB
-                    print(f"📊 Batch {batch_idx}: GPU Memory - Allocated: {memory_allocated:.2f}GB, Reserved: {memory_reserved:.2f}GB")
-                    
-                    # Nếu memory usage quá cao, force clear cache
-                    if memory_allocated > 0.8 * torch.cuda.get_device_properties(0).total_memory / 1024**3:
-                        print("⚠️ High GPU memory usage detected, clearing cache...")
-                        torch.cuda.empty_cache()
-                
-                # Debug info cho batch đầu tiên
-                if batch_idx == 0:
-                    print(f"🔍 Batch 0 debug:")
-                    print(f"  - Input images: {images.shape}, device={images.device}, dtype={images.dtype}")
-                    print(f"  - Input range: [{images.min():.4f}, {images.max():.4f}]")
-                
-                try:
-                    # Đảm bảo models vẫn ở đúng device trước mỗi forward pass
-                    self.ensure_models_on_device()
-                    
-                    # Forward pass through pipeline
+        # Set lambda value for compressor
+        if hasattr(self.compressor, 'set_lambda'):
+            self.compressor.set_lambda(lambda_value)
+        
+        # Iterate through dataset
+        for batch_idx, batch in enumerate(self.dataloader):
+            # Get images
+            images = batch['image'].to(self.device)
+            
+            # Debug first batch
+            if batch_idx == 0:
+                print(f"🔍 Batch {batch_idx}: GPU Memory - Allocated: {torch.cuda.memory_allocated() / 1e9:.2f}GB, Reserved: {torch.cuda.memory_reserved() / 1e9:.2f}GB")
+            
+            # Forward pass
+            try:
+                with torch.no_grad():
+                    # Wavelet transform
                     wavelet_coeffs = self.wavelet_cnn(images)
+                    
+                    # AdaMixNet
                     mixed_features = self.adamixnet(wavelet_coeffs)
-                    x_hat, likelihoods, y_quantized = self.compressor(mixed_features)
                     
-                    # Debug info cho batch đầu tiên
+                    # Compressor
+                    reconstructed_images, likelihoods, y_quantized = self.compressor(mixed_features)
+                    
+                    # Debug first batch
                     if batch_idx == 0:
+                        print(f"🔍 Batch {batch_idx} debug:")
+                        print(f"  - Input images: {images.shape}, device={images.device}, dtype={images.dtype}")
+                        print(f"  - Input range: [{images.min().item():.4f}, {images.max().item():.4f}]")
                         print(f"  - Wavelet output: {wavelet_coeffs.shape}, device={wavelet_coeffs.device}")
-                        print(f"  - Wavelet range: [{wavelet_coeffs.min():.4f}, {wavelet_coeffs.max():.4f}]")
+                        print(f"  - Wavelet range: [{wavelet_coeffs.min().item():.4f}, {wavelet_coeffs.max().item():.4f}]")
                         print(f"  - Mixed features: {mixed_features.shape}, device={mixed_features.device}")
-                        print(f"  - Mixed range: [{mixed_features.min():.4f}, {mixed_features.max():.4f}]")
-                        print(f"  - Compressor output: {x_hat.shape}, device={x_hat.device}")
-                        print(f"  - X_hat range: [{x_hat.min():.4f}, {x_hat.max():.4f}]")
+                        print(f"  - Mixed range: [{mixed_features.min().item():.4f}, {mixed_features.max().item():.4f}]")
+                        print(f"  - Compressor output: {reconstructed_images.shape}, device={reconstructed_images.device}")
+                        print(f"  - X_hat range: [{reconstructed_images.min().item():.4f}, {reconstructed_images.max().item():.4f}]")
                         print(f"  - Y quantized: {y_quantized.shape}, device={y_quantized.device}")
-                        print(f"  - Y quantized range: [{y_quantized.min():.4f}, {y_quantized.max():.4f}]")
-                        print(f"  - Y quantized non-zero ratio: {(y_quantized != 0).float().mean():.4f}")
+                        print(f"  - Y quantized range: [{y_quantized.min().item():.4f}, {y_quantized.max().item():.4f}]")
                         
-                        # Kiểm tra likelihoods
-                        if likelihoods is not None:
-                            print(f"  - Likelihoods shape: {likelihoods.shape if hasattr(likelihoods, 'shape') else 'None'}")
-                            if hasattr(likelihoods, 'shape'):
-                                print(f"  - Likelihoods range: [{likelihoods.min():.4f}, {likelihoods.max():.4f}]")
+                        # Calculate non-zero ratio
+                        non_zero = torch.count_nonzero(y_quantized).item()
+                        total = y_quantized.numel()
+                        print(f"  - Y quantized non-zero ratio: {non_zero / total:.4f}")
+                        
+                        print(f"  - Likelihoods shape: {likelihoods.shape}")
+                        print(f"  - Likelihoods range: [{likelihoods.min().item():.4f}, {likelihoods.max().item():.4f}]")
                     
-                    # Inverse transforms
-                    recovered_coeffs = self.adamixnet.inverse_transform(x_hat)
-                    reconstructed_images = self.wavelet_cnn.inverse_transform(recovered_coeffs)
-                    
-                    # Ensure same size
-                    if reconstructed_images.shape != images.shape:
-                        reconstructed_images = F.interpolate(
-                            reconstructed_images, 
-                            size=images.shape[2:], 
-                            mode='bilinear', 
-                            align_corners=False
-                        )
-                    
-                    # Calculate metrics
+                    # Calculate metrics for each image in batch
                     for i in range(images.size(0)):
                         original = images[i:i+1]
                         reconstructed = reconstructed_images[i:i+1]
                         
-                        psnr_val = calculate_psnr(original, reconstructed).item()
+                        # Ensure tensors are on CPU before calculating metrics
+                        original_cpu = original.cpu()
+                        reconstructed_cpu = reconstructed.cpu()
+                        y_quantized_cpu = y_quantized.cpu()
+                        
+                        psnr_val = calculate_psnr(original_cpu, reconstructed_cpu).item()
                         psnr_values.append(psnr_val)
                         
-                        ms_ssim_val = calculate_ms_ssim(original, reconstructed)
+                        ms_ssim_val = calculate_ms_ssim(original_cpu, reconstructed_cpu)
                         ms_ssim_values.append(ms_ssim_val)
                         
-                        bpp_val = estimate_bpp_from_features(y_quantized, images.shape[2:])
+                        bpp_val = estimate_bpp_from_features(y_quantized_cpu, images.shape[2:])
                         bpp_values.append(bpp_val)
                 
-                except Exception as e:
-                    error_msg = str(e)
-                    if "Input type (torch.cuda.FloatTensor) and weight type (torch.FloatTensor) should be the same" in error_msg:
-                        print(f"🚨 Device mismatch detected at batch {batch_idx}! Forcing models to device...")
-                        # Force move all models to device immediately
-                        self.wavelet_cnn = self.wavelet_cnn.to(self.device)
-                        self.adamixnet = self.adamixnet.to(self.device)
-                        self.compressor = self.compressor.to(self.device)
-                        
-                        # Force move all parameters
-                        for model in [self.wavelet_cnn, self.adamixnet, self.compressor]:
-                            for param in model.parameters():
-                                param.data = param.data.to(self.device, non_blocking=True)
-                        
-                        # Clear GPU cache
-                        if hasattr(torch.cuda, 'empty_cache'):
-                            torch.cuda.empty_cache()
-                        
-                        print(f"✅ Models forced to {self.device}, retrying batch {batch_idx}...")
-                        continue
-                    else:
-                        print(f"Error processing batch {batch_idx}: {e}")
-                        continue
-                
-                # Early stop for quick testing
-                if self.args.max_samples and batch_idx * self.args.batch_size >= self.args.max_samples:
-                    break
+            except Exception as e:
+                error_msg = str(e)
+                if "Input type (torch.cuda.FloatTensor) and weight type (torch.FloatTensor) should be the same" in error_msg:
+                    print(f"🚨 Device mismatch detected at batch {batch_idx}! Forcing models to device...")
+                    # Force move all models to device immediately
+                    self.wavelet_cnn = self.wavelet_cnn.to(self.device)
+                    self.adamixnet = self.adamixnet.to(self.device)
+                    self.compressor = self.compressor.to(self.device)
+                    
+                    # Force move all parameters
+                    for model in [self.wavelet_cnn, self.adamixnet, self.compressor]:
+                        for param in model.parameters():
+                            param.data = param.data.to(self.device, non_blocking=True)
+                    
+                    # Clear GPU cache
+                    if hasattr(torch.cuda, 'empty_cache'):
+                        torch.cuda.empty_cache()
+                    
+                    print(f"✅ Models forced to {self.device}, retrying batch {batch_idx}...")
+                    continue
+                else:
+                    print(f"Error processing batch {batch_idx}: {e}")
+                    continue
+            
+            # Early stop for quick testing
+            if self.args.max_samples and batch_idx * self.args.batch_size >= self.args.max_samples:
+                break
         
         # Calculate average metrics
         avg_psnr = np.mean(psnr_values) if psnr_values else 0
