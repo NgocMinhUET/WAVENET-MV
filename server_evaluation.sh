@@ -52,13 +52,12 @@ for lambda in "${lambda_values[@]}"; do
     python evaluation/codec_metrics_final.py \
         --stage1_checkpoint checkpoints/stage1_wavelet_coco_best.pth \
         --stage2_checkpoint checkpoints/stage2_compressor_coco_lambda${lambda}_best.pth \
-        --stage3_checkpoint checkpoints/stage3_ai_heads_coco_best.pth \
         --dataset coco \
         --data_dir datasets/COCO \
         --split val \
         --max_samples 100 \
         --batch_size 4 \
-        --output_file results/wavenet_mv_lambda${lambda}_codec_metrics.csv
+        --output_csv results/wavenet_mv_lambda${lambda}_codec_metrics.csv
     
     if [ $? -ne 0 ]; then
         echo "❌ Codec evaluation thất bại với lambda = $lambda"
@@ -75,7 +74,7 @@ for lambda in "${lambda_values[@]}"; do
         --split val \
         --max_samples 100 \
         --batch_size 4 \
-        --output_file results/wavenet_mv_lambda${lambda}_ai_metrics.csv
+        --output_csv results/wavenet_mv_lambda${lambda}_ai_metrics.csv
     
     if [ $? -ne 0 ]; then
         echo "❌ AI metrics evaluation thất bại với lambda = $lambda"
@@ -97,7 +96,9 @@ python evaluation/compare_baselines.py \
     --data_dir datasets/COCO \
     --split val \
     --max_samples 50 \
-    --output_file results/baseline_comparison.csv
+    --methods JPEG WebP PNG \
+    --qualities 30 50 70 90 \
+    --output_csv results/baseline_comparison.csv
 
 if [ $? -ne 0 ]; then
     echo "❌ Baseline comparison thất bại"
@@ -123,9 +124,8 @@ fi
 
 # Tạo bảng và biểu đồ so sánh
 python evaluation/generate_tables.py \
-    --input_file results/wavenet_mv_comprehensive_results.csv \
-    --baseline_file results/baseline_comparison.csv \
-    --output_dir tables
+    --results_dir results \
+    --output_file tables/wavenet_mv_tables.csv
 
 if [ $? -ne 0 ]; then
     echo "❌ Table generation thất bại"
