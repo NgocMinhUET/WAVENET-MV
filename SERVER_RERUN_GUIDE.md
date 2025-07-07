@@ -172,3 +172,37 @@ Nếu gặp lỗi:
 4. Pull lại trên server
 
 **Good luck! 🚀**
+
+## 📋 Hướng dẫn debug trên server:
+
+**Bước 2: Debug checkpoint structure**
+```bash
+python debug_checkpoint_structure.py
+```
+
+**Bước 3: Chạy lại evaluation** (sẽ hiển thị thêm debug info)
+```bash
+python evaluate_vcm.py \
+    --stage1_checkpoint checkpoints/stage1_wavelet_coco_best.pth \
+    --stage2_checkpoint checkpoints/stage2_compressor_coco_lambda128_best.pth \
+    --stage3_checkpoint checkpoints/stage3_ai_heads_coco_best.pth \
+    --dataset coco \
+    --data_dir datasets/COCO \
+    --enable_detection \
+    --enable_segmentation \
+    --batch_size 8 \
+    --max_samples 1000 \
+    --output_json results/vcm_results.json
+```
+
+---
+
+### 💡 **Các trường hợp có thể xảy ra:**
+
+1. **Checkpoint có format khác** → Script sẽ thử load với các key names khác nhau
+2. **Checkpoint bị corrupt hoặc không đúng** → Cần train lại Stage 3
+3. **Checkpoint được tạo từ script khác** → Cần sửa format hoặc train lại
+
+---
+
+**Hãy chạy debug script trước để xem checkpoint có gì, rồi báo lại kết quả để tôi hướng dẫn tiếp!**

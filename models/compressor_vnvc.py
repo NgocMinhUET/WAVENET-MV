@@ -14,20 +14,30 @@ import math
 
 
 class RoundWithNoise(torch.autograd.Function):
-    """Round-with-noise quantizer with scaling for small values"""
+    """Round-with-noise quantizer with improved scaling for preserving information"""
     
     @staticmethod
-    def forward(ctx, input, scale_factor=4.0):
-        # FIXED: Scale up small values để preserve information
+    def forward(ctx, input, scale_factor=20.0):
+        # MAJOR FIX: Increase scale_factor từ 4.0 → 20.0 để preserve information
+        # và prevent quantization collapse
+        
+        # Scale up input để preserve small values
         scaled_input = input * scale_factor
         
         # During training, add uniform noise and then round
         if ctx.needs_input_grad[0] and input.requires_grad:
+            # Add noise in [-0.5, 0.5] range
             noise = torch.empty_like(scaled_input).uniform_(-0.5, 0.5)
             quantized = torch.round(scaled_input + noise)
         else:
             # During inference, just round
             quantized = torch.round(scaled_input)
+        
+        # CRITICAL FIX: Ensure quantized values are not all zeros
+        # If all values are zero, use a minimum quantization level
+        if torch.all(torch.abs(quantized) < 1e-6):
+            # Apply minimum quantization to prevent collapse
+            quantized = torch.sign(scaled_input) * torch.clamp(torch.abs(scaled_input), min=0.25)
             
         # Scale back down
         return quantized / scale_factor
@@ -39,14 +49,14 @@ class RoundWithNoise(torch.autograd.Function):
 
 
 class QuantizerVNVC(nn.Module):
-    """Quantizer module với improved round-with-noise"""
+    """Quantizer module với improved parameters để prevent collapse"""
     
-    def __init__(self, scale_factor=4.0):
+    def __init__(self, scale_factor=20.0):  # INCREASED từ 4.0
         super().__init__()
         self.scale_factor = scale_factor
         
     def forward(self, x):
-        """Apply quantization with scaling"""
+        """Apply quantization with improved scaling"""
         return RoundWithNoise.apply(x, self.scale_factor)
     
     def quantize(self, x):

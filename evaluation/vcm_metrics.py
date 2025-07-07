@@ -218,6 +218,7 @@ class VCMEvaluator:
                     
                     if not yolo_loaded:
                         print("⚠️ YOLO head state dict not found in checkpoint, using random weights")
+                        print("   → Checkpoint only contains segmentation model")
                         
                 except Exception as e:
                     print(f"⚠️ Failed to load YOLO head: {e}, using random weights")

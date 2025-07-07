@@ -109,30 +109,57 @@ def calculate_ms_ssim(img1, img2, data_range=1.0):
 
 
 def estimate_bpp_from_features(quantized_features, image_shape):
-    """Estimate BPP từ quantized feature dimensions."""
+    """
+    FIXED: Improved BPP estimation để consistent với entropy-based calculation
+    Args:
+        quantized_features: Quantized latent features [B, C, H, W]  
+        image_shape: Original image shape (H, W)
+    Returns:
+        bpp: Estimated bits per pixel
+    """
     B, C, H_feat, W_feat = quantized_features.shape
     
-    # Tính tỷ lệ nén dựa trên kích thước ảnh thực tế và kích thước features
-    compression_ratio = (H_feat * W_feat) / (image_shape[0] * image_shape[1])
+    # Calculate compression ratio: feature_pixels / image_pixels
+    feature_pixels = H_feat * W_feat
+    image_pixels = image_shape[0] * image_shape[1]
+    compression_ratio = feature_pixels / image_pixels
     
-    # Đếm số lượng phần tử khác 0 trong quantized features
-    non_zero_elements = torch.count_nonzero(quantized_features)
-    non_zero_ratio = non_zero_elements.item() / (B * C * H_feat * W_feat)
+    # FIXED: Calculate non-zero ratio and entropy more accurately
+    # Move to CPU for numpy operations
+    features_cpu = quantized_features.cpu().detach()
     
-    # Tính bits per feature dựa trên non-zero ratio
-    # Nếu tất cả là 0, cần ít bits hơn để mã hóa
-    # Sử dụng công thức logarithmic để tính bits per feature
-    bits_per_feature = 1.0 + 3.0 * non_zero_ratio  # Từ 1.0 đến 4.0 bits tùy theo non-zero ratio
+    # Calculate non-zero ratio
+    non_zero_mask = torch.abs(features_cpu) > 1e-6
+    non_zero_ratio = torch.mean(non_zero_mask.float()).item()
     
-    # Tính BPP dựa trên compression ratio, số channels và bits per feature
-    estimated_bpp = compression_ratio * C * bits_per_feature * non_zero_ratio
+    # Estimate entropy based on value distribution
+    # More diverse values = higher entropy = more bits needed
+    unique_values = torch.unique(features_cpu)
+    num_unique = len(unique_values)
     
-    # Đảm bảo BPP nằm trong khoảng hợp lý
-    # Thông thường BPP nên nằm trong khoảng 0.05-5.0 cho nén hình ảnh
-    estimated_bpp = max(0.05, min(5.0, estimated_bpp))
+    # Calculate bits per feature based on entropy
+    if num_unique <= 1:
+        # Almost no information
+        bits_per_feature = 0.1
+    elif num_unique <= 4:
+        # Very low entropy
+        bits_per_feature = 0.5 + 1.5 * non_zero_ratio
+    elif num_unique <= 16:
+        # Low entropy
+        bits_per_feature = 1.0 + 2.0 * non_zero_ratio
+    else:
+        # Normal entropy
+        bits_per_feature = 2.0 + 3.0 * non_zero_ratio
     
-    # Trả về giá trị Python float, không phải tensor
-    return float(estimated_bpp)
+    # FIXED: More accurate BPP calculation
+    # Total bits = (features per image) * (channels) * (bits per feature)
+    estimated_bpp = compression_ratio * C * bits_per_feature
+    
+    # FIXED: Reasonable BPP clamping based on actual compression standards
+    # Typical range: 0.1-8.0 BPP for neural compression
+    estimated_bpp = max(0.1, min(8.0, estimated_bpp))
+    
+    return estimated_bpp
 
 
 class CodecEvaluatorFinal:

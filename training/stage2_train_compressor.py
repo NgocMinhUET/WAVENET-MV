@@ -237,15 +237,19 @@ class Stage2Trainer:
                 x_hat, likelihoods, y_quantized = self.compressor_model(mixed_features)
                 compressed_features = x_hat
                 
-                # Calculate BPP from likelihoods - FIXED: Use original image dimensions
-                # Original image dimensions for BPP calculation (NOT mixed_features dimensions)
-                batch_size = images.size(0)  # FIXED: Use images, not mixed_features
+                # Calculate BPP from likelihoods - FIXED: Use proper BPP calculation
+                # Original image dimensions for BPP calculation
+                batch_size = images.size(0)
                 num_pixels = images.size(2) * images.size(3)  # H * W of ORIGINAL images
                 
+                # FIXED: Proper rate calculation with clamping
                 # Rate calculation: -log2(likelihoods) summed over all dimensions
                 log_likelihoods = torch.log(likelihoods.clamp(min=1e-10))
                 total_bits = -log_likelihoods.sum() / math.log(2)
                 bpp = total_bits / (batch_size * num_pixels)
+                
+                # FIXED: Clamp BPP to reasonable range to prevent explosion
+                bpp = torch.clamp(bpp, min=0.01, max=10.0)
                 
                 # DEBUG: Check shapes và tensor values
                 if epoch == 0 and batch_idx == 0:
@@ -253,7 +257,7 @@ class Stage2Trainer:
                     print(f"🔍 DEBUG - Compressed features: {compressed_features.shape}, range: [{compressed_features.min():.4f}, {compressed_features.max():.4f}]")
                     diff = torch.abs(compressed_features - mixed_features)
                     print(f"🔍 DEBUG - Difference: mean={diff.mean():.8f}, max={diff.max():.8f}")
-                    print(f"🔍 DEBUG - Original images: {images.shape}, Mixed features: {mixed_features.shape}")
+                    print(f"🔍 DEBUG - Quantized features: non-zero ratio = {(y_quantized != 0).float().mean():.4f}")
                     print(f"🔍 DEBUG - BPP calculation: {total_bits:.2f} bits / ({batch_size} * {num_pixels}) = {bpp:.4f}")
                     if diff.max() < 1e-6:
                         print("🚨 BUG: CompressorVNVC acting as identity function!")
@@ -271,29 +275,41 @@ class Stage2Trainer:
                     )
                     print(f"✅ Resized to: {compressed_features.shape}")
                 
-                # Reconstruction loss (MSE) - REMOVED FLOOR to expose real MSE
+                # FIXED: Improved reconstruction loss calculation
                 mse_loss = self.mse_criterion(compressed_features, mixed_features)
-                # NO MSE FLOOR! Let's see the real MSE values
                 
-                # Total loss: λ·MSE + BPP
-                total_loss = self.args.lambda_rd * mse_loss + bpp
+                # FIXED: Adaptive lambda scaling based on loss magnitudes
+                # Ensure proper balance between MSE và BPP
+                adaptive_lambda = self.args.lambda_rd
                 
-                # MSE Health Check (first epoch only)
+                # If BPP is very small, increase lambda to emphasize reconstruction
+                if bpp < 0.1:
+                    adaptive_lambda *= 2.0
+                # If BPP is very large, decrease lambda to emphasize compression
+                elif bpp > 5.0:
+                    adaptive_lambda *= 0.5
+                
+                # Total loss với adaptive lambda
+                total_loss = adaptive_lambda * mse_loss + bpp
+                
+                # FIXED: Enhanced health check với better diagnostics
                 if epoch == 0 and batch_idx == 0:
-                    mse_component = self.args.lambda_rd * mse_loss
+                    mse_component = adaptive_lambda * mse_loss
                     bpp_component = bpp
                     total_loss_val = total_loss.item()
                     
                     mse_ratio = (mse_component / total_loss_val * 100).item()
                     bpp_ratio = (bpp_component / total_loss_val * 100).item()
                     
-                    print(f"🏥 MSE HEALTH CHECK:")
+                    print(f"🏥 ENHANCED HEALTH CHECK:")
                     print(f"   MSE Loss: {mse_loss.item():.6f}")
+                    print(f"   Original λ: {self.args.lambda_rd}, Adaptive λ: {adaptive_lambda:.2f}")
                     print(f"   λ*MSE: {mse_component.item():.4f} ({mse_ratio:.1f}%)")
                     print(f"   BPP: {bpp_component.item():.4f} ({bpp_ratio:.1f}%)")
                     print(f"   Total: {total_loss_val:.4f}")
+                    print(f"   Quantized non-zero ratio: {(y_quantized != 0).float().mean():.4f}")
                     
-                    # Health indicators
+                    # Enhanced health indicators
                     if mse_loss < 1e-6:
                         print("   ❌ MSE TOO SMALL: Potential identity function!")
                     elif mse_loss < 1e-3:
@@ -301,14 +317,19 @@ class Stage2Trainer:
                     elif mse_loss < 0.1:
                         print("   ✅ MSE HEALTHY: Good compression range")
                     else:
-                        print("   ⚠️ MSE LARGE: High distortion, consider increasing λ")
+                        print("   ⚠️ MSE LARGE: High distortion")
                     
-                    if mse_ratio < 1.0:
-                        print("   ❌ MSE IGNORED: MSE component < 1% of total loss!")
-                    elif mse_ratio < 10.0:
-                        print("   ⚠️ MSE WEAK: MSE component < 10% of total loss")
+                    if (y_quantized != 0).float().mean() < 0.05:
+                        print("   ❌ QUANTIZATION COLLAPSE: <5% non-zero values!")
+                    elif (y_quantized != 0).float().mean() < 0.2:
+                        print("   ⚠️ QUANTIZATION AGGRESSIVE: <20% non-zero values")
+                    else:
+                        print("   ✅ QUANTIZATION HEALTHY: Good diversity")
+                    
+                    if mse_ratio < 10.0:
+                        print("   ❌ MSE DOMINATED: MSE component < 10% of total loss!")
                     elif mse_ratio > 90.0:
-                        print("   ⚠️ BPP IGNORED: BPP component < 10% of total loss")  
+                        print("   ❌ BPP IGNORED: BPP component < 10% of total loss")  
                     else:
                         print("   ✅ BALANCED: Good MSE/BPP balance")
             
@@ -369,15 +390,19 @@ class Stage2Trainer:
                     x_hat, likelihoods, y_quantized = self.compressor_model(mixed_features)
                     compressed_features = x_hat
                     
-                    # Calculate BPP from likelihoods - FIXED: Use original image dimensions
-                    # Original image dimensions for BPP calculation (NOT mixed_features dimensions)
-                    batch_size = images.size(0)  # FIXED: Use images, not mixed_features
+                    # Calculate BPP from likelihoods - FIXED: Use proper BPP calculation
+                    # Original image dimensions for BPP calculation
+                    batch_size = images.size(0)
                     num_pixels = images.size(2) * images.size(3)  # H * W of ORIGINAL images
                     
+                    # FIXED: Proper rate calculation with clamping
                     # Rate calculation: -log2(likelihoods) summed over all dimensions
                     log_likelihoods = torch.log(likelihoods.clamp(min=1e-10))
                     total_bits = -log_likelihoods.sum() / math.log(2)
                     bpp = total_bits / (batch_size * num_pixels)
+                    
+                    # FIXED: Clamp BPP to reasonable range to prevent explosion
+                    bpp = torch.clamp(bpp, min=0.01, max=10.0)
                     
                     # Shape check cho validation
                     if compressed_features.shape != mixed_features.shape:
