@@ -74,7 +74,10 @@ for lambda in "${lambda_values[@]}"; do
         --split val \
         --max_samples 100 \
         --batch_size 4 \
-        --output_csv results/wavenet_mv_lambda${lambda}_ai_metrics.csv
+        --enable_detection \
+        --enable_segmentation \
+        --lambda_rd ${lambda} \
+        --output_json results/wavenet_mv_lambda${lambda}_ai_metrics.json
     
     if [ $? -ne 0 ]; then
         echo "❌ AI metrics evaluation thất bại với lambda = $lambda"
