@@ -163,7 +163,8 @@ class CompressorVNVC(nn.Module):
         )
         
         # Quantizer with scale factor để handle small values
-        self.quantizer = QuantizerVNVC(scale_factor=4.0)
+        # FIXED: Increase scale factor from 4.0 to 20.0 for better quantization
+        self.quantizer = QuantizerVNVC(scale_factor=20.0)
         
         # Entropy bottleneck
         self.entropy_bottleneck = EntropyBottleneck(latent_channels)
@@ -306,6 +307,11 @@ class MultiLambdaCompressorVNVC(nn.Module):
     
     def __init__(self, input_channels=128, latent_channels=192):
         super().__init__()
+        
+        self.input_channels = input_channels
+        self.latent_channels = latent_channels
+        # FIXED: Increase scale factor from 4.0 to 20.0 for better quantization
+        self.quantizer = QuantizerVNVC(scale_factor=20.0)
         
         # Multiple compressors cho different lambda values - UPDATED to include 128
         self.compressors = nn.ModuleDict({
