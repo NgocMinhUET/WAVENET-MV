@@ -147,7 +147,8 @@ def debug_evaluation_pipeline():
         compression_ratio = (H_feat * W_feat) / (test_input.shape[2] * test_input.shape[3])
         bits_per_feature = 4.0  # More realistic
         estimated_bpp = compression_ratio * C * bits_per_feature
-        estimated_bpp = max(0.1, min(10.0, estimated_bpp))
+        # FIXED: Remove the clamp that was forcing BPP to 10.0
+    # estimated_bpp = max(0.1, min(10.0, estimated_bpp))  # REMOVED THIS LINE
         
         print(f"Feature shape: {y_quantized.shape}")
         print(f"Compression ratio: {compression_ratio:.6f}")

@@ -108,7 +108,8 @@ def estimate_bpp_from_features(quantized_features, image_shape):
     compression_ratio = (H_feat * W_feat) / (image_shape[0] * image_shape[1])
     bits_per_feature = 4.0
     estimated_bpp = compression_ratio * C * bits_per_feature
-    estimated_bpp = max(0.1, min(10.0, estimated_bpp))
+    # FIXED: Remove the clamp that was forcing BPP to 10.0
+    # estimated_bpp = max(0.1, min(10.0, estimated_bpp))  # REMOVED THIS LINE
     return estimated_bpp
 
 
