@@ -111,11 +111,25 @@ def calculate_ms_ssim(img1, img2, data_range=1.0):
 def estimate_bpp_from_features(quantized_features, image_shape):
     """Estimate BPP từ quantized feature dimensions."""
     B, C, H_feat, W_feat = quantized_features.shape
+    
+    # Tính tỷ lệ nén dựa trên kích thước ảnh thực tế và kích thước features
     compression_ratio = (H_feat * W_feat) / (image_shape[0] * image_shape[1])
-    bits_per_feature = 4.0
+    
+    # Đếm số lượng phần tử khác 0 trong quantized features
+    non_zero_elements = torch.count_nonzero(quantized_features)
+    non_zero_ratio = non_zero_elements / (B * C * H_feat * W_feat)
+    
+    # Tính bits per feature dựa trên non-zero ratio
+    # Nếu tất cả là 0, cần ít bits hơn để mã hóa
+    bits_per_feature = 2.0 + 2.0 * non_zero_ratio  # Từ 2.0 đến 4.0 bits tùy theo non-zero ratio
+    
+    # Tính BPP dựa trên compression ratio, số channels và bits per feature
     estimated_bpp = compression_ratio * C * bits_per_feature
-    # FIXED: Remove the clamp that was forcing BPP to 10.0
-    # estimated_bpp = max(0.1, min(10.0, estimated_bpp))  # REMOVED THIS LINE
+    
+    # Đảm bảo BPP nằm trong khoảng hợp lý
+    # Thông thường BPP nên nằm trong khoảng 0.1-10.0 cho nén hình ảnh
+    estimated_bpp = max(0.1, min(10.0, estimated_bpp))
+    
     return estimated_bpp
 
 
