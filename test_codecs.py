@@ -234,7 +234,7 @@ def main():
     # Test JPEG2000 with different methods
     opencv_jp2_ok = test_jpeg2000_opencv()
     pillow_jp2_ok = test_jpeg2000_pillow()
-    imageio_jp2_ok = test_jpeg2000_imageio()
+    imageio_jp2_ok = test_imageio_jpeg2000()
     
     # Summary
     print("\n📊 CODEC TEST SUMMARY")
