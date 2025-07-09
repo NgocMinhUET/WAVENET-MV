@@ -18,7 +18,7 @@ if [ $? -ne 0 ]; then
 fi
 
 # Kiểm tra dataset
-DATASET_DIR="datasets/COCO_Official"
+DATASET_DIR="datasets/COCO"
 if [ ! -d "$DATASET_DIR" ]; then
     echo "❌ Dataset not found at $DATASET_DIR"
     echo "Please run: python datasets/setup_coco_official.py"
