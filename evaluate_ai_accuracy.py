@@ -168,35 +168,103 @@ def compress_with_codec(image_path, codec, quality, output_dir):
     
     # Generate output filename
     image_name = Path(image_path).stem
-    if codec.upper() == 'JPEG':
-        output_path = output_dir / f"{image_name}_q{quality}.jpg"
-        
-        # Compress with PIL
-        img = Image.open(image_path)
-        img.save(output_path, 'JPEG', quality=quality, optimize=True)
-        
-    elif codec.upper() == 'JPEG2000':
-        output_path = output_dir / f"{image_name}_q{quality}.jp2"
-        
-        # Compress with OpenCV (better JPEG2000 support)
-        img = cv2.imread(str(image_path))
-        # For JPEG2000, quality is compression ratio (higher = more compression)
-        compression_ratio = 100 - quality  # Invert so higher quality = less compression
-        cv2.imwrite(str(output_path), img, [cv2.IMWRITE_JPEG2000_COMPRESSION_X1000, compression_ratio * 10])
-        
-    else:
-        raise ValueError(f"Unsupported codec: {codec}")
     
-    return output_path
+    try:
+        if codec.upper() == 'JPEG':
+            output_path = output_dir / f"{image_name}_q{quality}.jpg"
+            
+            # Compress with PIL
+            img = Image.open(image_path)
+            if img.mode != 'RGB':
+                img = img.convert('RGB')
+            img.save(output_path, 'JPEG', quality=quality, optimize=True)
+            
+        elif codec.upper() == 'JPEG2000':
+            output_path = output_dir / f"{image_name}_q{quality}.jp2"
+            
+            # Use PIL instead of OpenCV for better JPEG2000 support
+            img = Image.open(image_path)
+            if img.mode != 'RGB':
+                img = img.convert('RGB')
+            
+            # Convert quality to compression ratio for JPEG2000
+            # Quality 10-95 -> compression ratio 95-5 (lower = more compression)
+            compression_ratio = 100 - quality
+            
+            # Save with PIL (requires pillow-heif for JPEG2000)
+            try:
+                img.save(output_path, 'JPEG2000', quality_mode='rates', quality_layers=[compression_ratio])
+            except Exception as e:
+                print(f"⚠️ PIL JPEG2000 failed: {e}")
+                # Fallback to OpenCV with better error handling
+                img_cv = cv2.imread(str(image_path))
+                if img_cv is None:
+                    raise ValueError(f"Could not load image: {image_path}")
+                
+                # Use lower compression values for OpenCV
+                compression_value = max(1, min(50, compression_ratio))
+                success = cv2.imwrite(str(output_path), img_cv, 
+                                    [cv2.IMWRITE_JPEG2000_COMPRESSION_X1000, compression_value * 10])
+                
+                if not success:
+                    raise ValueError(f"OpenCV JPEG2000 compression failed")
+        
+        else:
+            raise ValueError(f"Unsupported codec: {codec}")
+        
+        # Verify output file exists and is valid
+        if not output_path.exists():
+            raise FileNotFoundError(f"Output file not created: {output_path}")
+        
+        # Quick validation by trying to load the compressed image
+        try:
+            test_img = Image.open(output_path)
+            test_img.verify()
+        except Exception as e:
+            print(f"⚠️ Compressed image validation failed: {e}")
+            # Try with OpenCV as fallback
+            test_cv = cv2.imread(str(output_path))
+            if test_cv is None:
+                raise ValueError(f"Compressed image cannot be loaded: {output_path}")
+        
+        return output_path
+        
+    except Exception as e:
+        print(f"❌ Compression failed for {image_path} with {codec} Q={quality}: {e}")
+        return None
 
 def calculate_metrics(original_path, compressed_path):
     """Calculate PSNR, SSIM, and file size metrics"""
     try:
-        # Load images
-        original = cv2.imread(str(original_path))
-        compressed = cv2.imread(str(compressed_path))
+        # Validate file existence
+        if not os.path.exists(original_path):
+            print(f"❌ Original file not found: {original_path}")
+            return None
+        if not os.path.exists(compressed_path):
+            print(f"❌ Compressed file not found: {compressed_path}")
+            return None
         
-        if original is None or compressed is None:
+        # Load images with better error handling
+        original = cv2.imread(str(original_path))
+        if original is None:
+            print(f"❌ Could not load original image: {original_path}")
+            return None
+            
+        compressed = cv2.imread(str(compressed_path))
+        if compressed is None:
+            print(f"❌ Could not load compressed image: {compressed_path}")
+            # Try alternative loading methods
+            try:
+                from PIL import Image
+                img = Image.open(compressed_path)
+                compressed = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
+            except:
+                print(f"❌ Alternative loading also failed: {compressed_path}")
+                return None
+        
+        # Validate image dimensions
+        if len(original.shape) != 3 or len(compressed.shape) != 3:
+            print(f"❌ Invalid image dimensions: {original.shape}, {compressed.shape}")
             return None
             
         # Resize if needed
@@ -279,7 +347,7 @@ def main():
     
     for codec in args.codecs:
         for quality in args.quality_levels:
-            print(f"\n🔄 Evaluating {codec} Q={quality}")
+            print(f"\n�� Evaluating {codec} Q={quality}")
             
             codec_results = []
             
@@ -290,9 +358,16 @@ def main():
                         image_path, codec, quality, temp_dir / codec / str(quality)
                     )
                     
+                    # Skip if compression failed
+                    if compressed_path is None:
+                        print(f"⚠️ Skipping {image_path.name} - compression failed")
+                        pbar.update(1)
+                        continue
+                    
                     # Calculate compression metrics
                     compression_metrics = calculate_metrics(image_path, compressed_path)
                     if compression_metrics is None:
+                        print(f"⚠️ Skipping {image_path.name} - metrics calculation failed")
                         pbar.update(1)
                         continue
                     
@@ -313,7 +388,7 @@ def main():
                     codec_results.append(result)
                     
                 except Exception as e:
-                    print(f"❌ Failed to process {image_path}: {e}")
+                    print(f"❌ Failed to process {image_path.name}: {e}")
                 
                 pbar.update(1)
             
