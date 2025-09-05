@@ -1,0 +1,9 @@
+Image compression standards like JPEG optimize for human perception, often discarding high-frequency details important for computer vision tasks. This mismatch becomes problematic in applications where compressed images feed into AI models, such as autonomous driving or video surveillance systems.
+
+Recent neural compression methods have improved rate-distortion performance through learned transforms and adaptive entropy models. However, most approaches still optimize for perceptual quality metrics (PSNR, MS-SSIM) that may not correlate with downstream task accuracy.
+
+We introduce WAVENET-MV, a neural compression framework that prioritizes machine vision performance over perceptual fidelity. The method consists of three stages: (1) learnable wavelet transforms (267k parameters), (2) attention-based feature mixing (AdaMixNet), and (3) variable-rate entropy coding with rate control through six lambda values.
+
+Our contributions include: (i) a wavelet-based neural transform optimized for vision tasks, (ii) an attention mechanism that emphasizes task-relevant frequency components, and (iii) experimental validation showing 6-9% mAP improvements over JPEG on COCO object detection.
+
+The paper is organized as follows: Section II reviews related work, Section III details our methodology, Section IV presents experimental results, and Section V concludes with limitations and future work.

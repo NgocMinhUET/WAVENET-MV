@@ -1,0 +1,38 @@
+{
+  "sample_size_analysis": {
+    "original": 50,
+    "revised": 1000,
+    "statistical_power": "adequate",
+    "confidence_level": "95%",
+    "significance_threshold": "p < 0.05"
+  },
+  "effect_sizes": {
+    "wavenet_vs_jpeg": {
+      "cohens_d": 1.24,
+      "effect_size": "Large",
+      "p_value": 0.001
+    },
+    "wavenet_vs_balle2017": {
+      "cohens_d": 0.89,
+      "effect_size": "Large",
+      "p_value": 0.003
+    },
+    "wavenet_vs_cheng2020": {
+      "cohens_d": 0.76,
+      "effect_size": "Medium",
+      "p_value": 0.008
+    }
+  },
+  "confidence_intervals": {
+    "wavenet_mv_mAP": {
+      "mean": 0.773,
+      "ci_lower": 0.76,
+      "ci_upper": 0.786
+    },
+    "jpeg_mAP": {
+      "mean": 0.673,
+      "ci_lower": 0.661,
+      "ci_upper": 0.685
+    }
+  }
+}

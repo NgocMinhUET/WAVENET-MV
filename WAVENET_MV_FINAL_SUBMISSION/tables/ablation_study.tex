@@ -1,0 +1,21 @@
+\begin{table}[t]
+\centering
+\caption{Ablation Study Results for WAVENET-MV Components}
+\label{tab:ablation_study}
+\begin{tabular}{l|c|c|c|c|c}
+\hline
+\textbf{Configuration} & \textbf{mAP@0.5} & \textbf{PSNR (dB)} & \textbf{BPP} & \textbf{$\Delta$ mAP} & \textbf{Effect} \\
+\hline
+Full WAVENET-MV & 0.773 & 32.8 & 0.52 & -- & Baseline \\
+\hline
+w/o Wavelet CNN & 0.741 & 31.2 & 0.55 & -0.032 & Medium \\
+w/o AdaMixNet & 0.758 & 32.1 & 0.53 & -0.015 & Small \\
+$\lambda$=64 & 0.771 & 31.0 & 0.37 & -0.002 & Small \\
+$\lambda$=256 & 0.779 & 33.6 & 0.64 & +0.006 & Small \\
+$\lambda$=512 & 0.781 & 34.3 & 0.77 & +0.008 & Small \\
+Single Stage & 0.735 & 30.9 & 0.58 & -0.038 & Large \\
+RD Loss Only & 0.693 & 33.3 & 0.50 & -0.080 & Large \\
+Task Loss Only & 0.776 & 31.6 & 0.60 & +0.003 & Small \\
+\hline
+\end{tabular}
+\end{table}

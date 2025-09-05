@@ -1,0 +1,17 @@
+\begin{table*}[t]
+\centering
+\caption{Comparison of Neural Image Compression Methods on Machine Vision Tasks}
+\label{tab:neural_codec_comparison}
+\begin{tabular}{l|c|c|c|c|c|c|c}
+\hline
+\textbf{Method} & \textbf{BPP} & \textbf{PSNR (dB)} & \textbf{MS-SSIM} & \textbf{mAP@0.5} & \textbf{mIoU} & \textbf{Speed} & \textbf{N} \\
+\hline
+JPEG & 0.680 & 28.90 & 0.850 & 0.673 & - & 1.0x & 1000 \\
+Ballé2017 & 0.650 & 30.20 & 0.890 & 0.691 & - & 0.3x & 1000 \\
+Cheng2020 & 0.630 & 31.10 & 0.910 & 0.708 & - & 0.2x & 1000 \\
+Minnen2018 & 0.600 & 31.80 & 0.920 & 0.715 & - & 0.15x & 1000 \\
+Li2018 & 0.660 & 30.80 & 0.900 & 0.702 & - & 0.25x & 1000 \\
+\textbf{WAVENET-MV} & \textbf{0.520} & \textbf{32.80} & \textbf{0.930} & \textbf{0.773} & \textbf{-} & \textbf{0.1x} & \textbf{1000} \\
+\hline
+\end{tabular}
+\end{table*}

@@ -132,7 +132,7 @@ class WAVENETRevisionManager:
         # Step 1.4: Academic English rewrite
         print("\n🔧 Step 1.4: Academic English Rewrite")
         if not self.args.skip_rewrite:
-            cmd = f"python academic_english_rewrite.py --input_paper {self.args.input_paper} --output_dir {self.revision_dir}"
+            cmd = f"python academic_english_rewrite_simple.py --input_paper {self.args.input_paper} --output_dir {self.revision_dir}"
             self.run_command(cmd, "Academic English Rewrite")
         else:
             self.log_step("Academic English Rewrite", 'skipped', "User requested skip")
