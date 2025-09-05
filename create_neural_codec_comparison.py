@@ -37,7 +37,7 @@ try:
     from models.ai_heads import YOLOTinyHead
     WAVENET_AVAILABLE = True
 except ImportError as e:
-    print(f"⚠️ WAVENET-MV models not available: {e}")
+    print(f"WARNING: WAVENET-MV models not available: {e}")
     WAVENET_AVAILABLE = False
 
 # Neural codec implementations (placeholder - would need actual implementations)

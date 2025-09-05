@@ -41,7 +41,7 @@ try:
     from evaluate_ai_accuracy import AIAccuracyEvaluator, calculate_metrics
     WAVENET_AVAILABLE = True
 except ImportError as e:
-    print(f"⚠️ WAVENET-MV models not available: {e}")
+    print(f"WARNING: WAVENET-MV models not available: {e}")
     WAVENET_AVAILABLE = False
 
 class DCTTransformCNN(nn.Module):

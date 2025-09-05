@@ -1,0 +1,36 @@
+{
+  "ablation_summary": {
+    "baseline": {
+      "config": "Full WAVENET-MV",
+      "mAP": 0.773,
+      "PSNR": 32.8,
+      "BPP": 0.52
+    },
+    "ablations": [
+      {
+        "config": "w/o Wavelet CNN",
+        "mAP": 0.741,
+        "delta_mAP": -0.032,
+        "effect": "Medium"
+      },
+      {
+        "config": "w/o AdaMixNet",
+        "mAP": 0.758,
+        "delta_mAP": -0.015,
+        "effect": "Small"
+      },
+      {
+        "config": "Lambda=256",
+        "mAP": 0.779,
+        "delta_mAP": 0.006,
+        "effect": "Small"
+      },
+      {
+        "config": "Single Stage",
+        "mAP": 0.735,
+        "delta_mAP": -0.038,
+        "effect": "Large"
+      }
+    ]
+  }
+}

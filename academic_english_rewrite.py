@@ -276,7 +276,7 @@ While WAVENET-MV demonstrates promising preliminary results for task-oriented co
     
     def rewrite_full_paper(self, paper_path):
         """Rewrite entire paper with academic English"""
-        print("📝 ACADEMIC ENGLISH REWRITE")
+        print("ACADEMIC ENGLISH REWRITE")
         print("=" * 40)
         
         # Read original paper
@@ -367,14 +367,14 @@ While WAVENET-MV demonstrates promising preliminary results for task-oriented co
         for section_name, new_text in rewritten_sections.items():
             if section_name == 'abstract':
                 new_content = re.sub(
-                    r'(\\begin{abstract})(.*?)(\\end{abstract})',
-                    f'\\1\n{new_text}\n\\3',
+                    r'(\\begin\{abstract\})(.*?)(\\end\{abstract\})',
+                    r'\1\n' + new_text + r'\n\3',
                     new_content, flags=re.DOTALL
                 )
             elif section_name == 'introduction':
                 new_content = re.sub(
-                    r'(\\section{Introduction})(.*?)(?=\\section|\\subsection)',
-                    f'\\1\n\n{new_text}\n\n',
+                    r'(\\section\{Introduction\})(.*?)(?=\\section|\\subsection)',
+                    r'\1\n\n' + new_text + r'\n\n',
                     new_content, flags=re.DOTALL
                 )
             # Add other sections as needed

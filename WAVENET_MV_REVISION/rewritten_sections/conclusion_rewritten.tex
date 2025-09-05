@@ -1,0 +1,22 @@
+We presented WAVENET-MV, a neural image compression framework optimized for machine vision tasks. The approach combines learnable wavelet transforms, attention-based feature mixing, and variable-rate entropy coding to prioritize task performance over perceptual quality.
+
+Experimental evaluation on COCO object detection shows 6-9% mAP improvements over JPEG at competitive bitrates. Ablation studies confirm the contribution of key components: learnable wavelets (+3.2% mAP), attention mechanism (+1.5% mAP), and multi-stage training (+3.8% mAP).
+
+However, several critical limitations constrain current applicability:
+
+\begin{enumerate}
+\item \textbf{Limited Scale:} Evaluation on 1,000 images from a single dataset provides preliminary evidence but insufficient validation for deployment.
+\item \textbf{Narrow Scope:} Testing only object detection leaves performance on other vision tasks unknown.
+\item \textbf{Computational Cost:} 4-7× encoding overhead and 10× memory usage limit practical deployment.
+\item \textbf{Incomplete Comparison:} Limited baseline comparison with recent neural and task-oriented compression methods.
+\end{enumerate}
+
+Future work should address these limitations through:
+\begin{itemize}
+\item Large-scale evaluation across multiple datasets (Cityscapes, ADE20K) and tasks (segmentation, tracking)
+\item Comprehensive comparison with state-of-the-art neural compression methods
+\item End-to-end optimization with task networks
+\item Computational efficiency improvements for practical deployment
+\end{itemize}
+
+While WAVENET-MV demonstrates promising preliminary results for task-oriented compression, substantial additional research is required before practical application. The work contributes to understanding trade-offs between perceptual quality and task performance in neural compression, an increasingly important area as AI systems process more compressed visual data.

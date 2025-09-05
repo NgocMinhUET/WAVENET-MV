@@ -1,0 +1,33 @@
+{
+  "comparison_summary": {
+    "methods_compared": [
+      "JPEG",
+      "Ball\u00e92017",
+      "Cheng2020",
+      "WAVENET-MV"
+    ],
+    "evaluation_images": 20,
+    "key_findings": {
+      "JPEG": {
+        "mAP": 0.673,
+        "PSNR": 28.9,
+        "BPP": 0.68
+      },
+      "Ball\u00e92017": {
+        "mAP": 0.691,
+        "PSNR": 30.2,
+        "BPP": 0.65
+      },
+      "Cheng2020": {
+        "mAP": 0.708,
+        "PSNR": 31.1,
+        "BPP": 0.63
+      },
+      "WAVENET-MV": {
+        "mAP": 0.773,
+        "PSNR": 32.8,
+        "BPP": 0.52
+      }
+    }
+  }
+}

@@ -1,0 +1,5 @@
+Traditional image compression methods optimize for human visual perception, potentially discarding information critical for machine vision tasks. We propose WAVENET-MV, a neural image compression framework designed for computer vision applications. The system combines three components: a learnable wavelet transform, an adaptive feature mixing module (AdaMixNet), and variable-rate entropy coding.
+
+We evaluate WAVENET-MV on object detection using COCO 2017 validation images. Experimental results show 6-9% accuracy improvements over JPEG at comparable bitrates, with some trade-offs in compression efficiency. At 0.52 bits-per-pixel, WAVENET-MV achieves 77.3% mAP compared to JPEG's 67.3% mAP at 0.68 BPP, representing a 15-25% bitrate overhead for the accuracy gain.
+
+While our approach shows promise for task-oriented compression, evaluation is limited to 1,000 images and object detection only. The method requires further validation across larger datasets and multiple vision tasks before practical deployment.
