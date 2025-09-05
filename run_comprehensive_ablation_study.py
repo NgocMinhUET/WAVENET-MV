@@ -193,12 +193,24 @@ class WAVENETAblationStudy:
     def load_test_dataset(self):
         """Load test dataset"""
         # Use large-scale evaluation dataset if available
-        if hasattr(self.args, 'eval_dataset_dir') and Path(self.args.eval_dataset_dir).exists():
-            images_dir = Path(self.args.eval_dataset_dir) / "images"
+        eval_dataset_dir = getattr(self.args, 'eval_dataset_dir', None)
+        if eval_dataset_dir and Path(eval_dataset_dir).exists():
+            images_dir = Path(eval_dataset_dir) / "images"
             self.test_images = list(images_dir.glob("*.jpg"))[:self.args.max_images]
         else:
-            # Fallback to COCO
+            # Fallback to COCO with multiple path attempts
             coco_dir = Path(self.args.data_dir) / "COCO" / "val2017"
+            if not coco_dir.exists():
+                # Try alternative COCO paths
+                alt_paths = [
+                    Path("datasets/COCO/val2017"),
+                    Path("evaluation_datasets/COCO_eval_1000/images"),
+                    Path("COCO/val2017")
+                ]
+                for alt_path in alt_paths:
+                    if alt_path.exists():
+                        coco_dir = alt_path
+                        break
             self.test_images = list(coco_dir.glob("*.jpg"))[:self.args.max_images]
         
         print(f"📁 Loaded {len(self.test_images)} test images")

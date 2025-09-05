@@ -271,13 +271,26 @@ class NeuralCodecComparator:
     
     def load_test_images(self):
         """Load test images"""
-        if hasattr(self.args, 'eval_dataset_dir') and Path(self.args.eval_dataset_dir).exists():
+        # Check if large-scale evaluation dataset exists
+        eval_dataset_dir = getattr(self.args, 'eval_dataset_dir', None)
+        if eval_dataset_dir and Path(eval_dataset_dir).exists():
             # Use large-scale evaluation dataset
-            images_dir = Path(self.args.eval_dataset_dir) / "images"
+            images_dir = Path(eval_dataset_dir) / "images"
             image_files = list(images_dir.glob("*.jpg"))[:self.args.max_images]
         else:
             # Fallback to COCO val2017
             coco_dir = Path(self.args.data_dir) / "COCO" / "val2017"
+            if not coco_dir.exists():
+                # Try alternative COCO paths
+                alt_paths = [
+                    Path("datasets/COCO/val2017"),
+                    Path("evaluation_datasets/COCO_eval_1000/images"),
+                    Path("COCO/val2017")
+                ]
+                for alt_path in alt_paths:
+                    if alt_path.exists():
+                        coco_dir = alt_path
+                        break
             image_files = list(coco_dir.glob("*.jpg"))[:self.args.max_images]
         
         print(f"📁 Loading {len(image_files)} test images")

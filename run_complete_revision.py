@@ -108,7 +108,11 @@ class WAVENETRevisionManager:
         # Step 1.2: Neural codec comparison framework
         print("\n🔧 Step 1.2: Neural Codec Comparison")
         if not self.args.skip_neural_codecs:
-            cmd = f"python create_neural_codec_comparison.py --methods {' '.join(self.args.neural_methods)} --max_images {self.args.comparison_images} --output_dir {self.revision_dir}/neural_comparison"
+            # Check if large-scale dataset was created
+            eval_dataset_path = Path("evaluation_datasets/COCO_eval_1000")
+            eval_dataset_arg = f" --eval_dataset_dir {eval_dataset_path}" if eval_dataset_path.exists() else ""
+            
+            cmd = f"python create_neural_codec_comparison.py --methods {' '.join(self.args.neural_methods)} --max_images {self.args.comparison_images} --data_dir {self.args.data_dir} --output_dir {self.revision_dir}/neural_comparison{eval_dataset_arg}"
             self.run_command(cmd, "Neural Codec Comparison", required=False)
         else:
             self.log_step("Neural Codec Comparison", 'skipped', "User requested skip")
@@ -116,7 +120,11 @@ class WAVENETRevisionManager:
         # Step 1.3: Comprehensive ablation study
         print("\n🔧 Step 1.3: Comprehensive Ablation Study")
         if not self.args.skip_ablation:
-            cmd = f"python run_comprehensive_ablation_study.py --max_images {self.args.ablation_images} --components {' '.join(self.args.ablation_components)} --output_dir {self.revision_dir}/ablation_study"
+            # Check if large-scale dataset was created
+            eval_dataset_path = Path("evaluation_datasets/COCO_eval_1000")
+            eval_dataset_arg = f" --eval_dataset_dir {eval_dataset_path}" if eval_dataset_path.exists() else ""
+            
+            cmd = f"python run_comprehensive_ablation_study.py --max_images {self.args.ablation_images} --components {' '.join(self.args.ablation_components)} --data_dir {self.args.data_dir} --output_dir {self.revision_dir}/ablation_study{eval_dataset_arg}"
             self.run_command(cmd, "Comprehensive Ablation Study")
         else:
             self.log_step("Comprehensive Ablation Study", 'skipped', "User requested skip")
